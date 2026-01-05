@@ -93,6 +93,9 @@ function logToScreen(type, text, cssClass) {
     const line = document.createElement('div');
     const time = new Date().toLocaleTimeString('ru-RU');
     line.innerHTML = `<span style="opacity:0.5">[${time}]</span> [${type}] <span class="${cssClass}">${text}</span>`;
-    logDiv.appendChild(line);
-    logDiv.scrollTop = logDiv.scrollHeight;
+    logDiv.prepend(line);
+
+    if (logDiv.children.length > 10) {
+        logDiv.removeChild(logDiv.lastChild);
+    }
 }
