@@ -28,7 +28,12 @@ request.onsuccess = (e) => {
 // --- ФУНКЦИЯ ПРОВЕРКИ ---
 
 function checkViewer(username, event = '') {
+
+    // если бот - скип
     if (BOTS.includes(username)) return;
+
+    let user_class = 'normal';
+    if (COOL_USERS.includes(username)) user_class = 'special';
 
     const tx = db.transaction(["viewers"], "readwrite");
     const store = tx.objectStore("viewers");
@@ -37,9 +42,10 @@ function checkViewer(username, event = '') {
     req.onsuccess = () => {
         if (req.result) {
             // Старичок
-            if (event !== 'message') {
-                logToScreen("JOIN", `${username}`, "old-viewer");
-            }
+            // if (event !== 'message') {
+            // }
+            logToScreen("JOIN", `${username}`, user_class);
+            // logToScreen("JOIN", `${username}`, "old-viewer");
         } else {
             // Новенький
             store.add({ username: username, firstSeen: Date.now() });
@@ -71,13 +77,13 @@ function startTwitchListener() {
     // Событие JOIN (Кто-то зашел)
     client.on('join', (channel, username, self) => {
         if (self) return; // Игнорируем себя (хотя для анонима это редкость)
-        checkViewer(username);
+        checkViewer(username, 'join');
     });
 
     // (Опционально) Событие MESSAGE - если хочешь ловить тех, кто написал, но join не сработал
     client.on('message', (channel, tags, message, self) => {
         // tags['username'] - это ник пишущего
-        checkViewer(tags['username'], 'message');
+        // checkViewer(tags['username'], 'message');
     });
 }
 
