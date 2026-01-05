@@ -95,7 +95,7 @@ function logToScreen(type, text, cssClass) {
     line.innerHTML = `<span style="opacity:0.5">[${time}]</span> [${type}] <span class="${cssClass}">${text}</span>`;
     logDiv.prepend(line);
 
-    if (logDiv.children.length > 10) {
+    while (logDiv.children.length > 10) {
         logDiv.removeChild(logDiv.lastChild);
     }
 }
