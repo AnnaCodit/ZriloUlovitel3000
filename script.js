@@ -49,7 +49,7 @@ function checkViewer(username, event = '') {
         } else {
             // Новенький
             store.add({ username: username, firstSeen: Date.now() });
-            logToScreen("ALERT", `>>> NEW VIEWER: ${username} <<<`, "new-viewer");
+            logToScreen("ALERT", `${username}`, "new");
         }
     };
 }
@@ -88,11 +88,27 @@ function startTwitchListener() {
 }
 
 // --- ВЫВОД НА ЭКРАН ---
-function logToScreen(type, text, cssClass) {
+function logToScreen(type, user_name, css_class) {
+
+
     const logDiv = document.getElementById('log');
     const line = document.createElement('div');
+    line.classList.add('line', css_class);
     const time = new Date().toLocaleTimeString('ru-RU');
-    line.innerHTML = `<span style="opacity:0.5">[${time}]</span> [${type}] <span class="${cssClass}">${text}</span>`;
-    logDiv.appendChild(line);
-    logDiv.scrollTop = logDiv.scrollHeight;
+
+    let last_element = logDiv.firstChild;
+    if (last_element) last_element.classList.add('separated')
+
+    line.innerHTML = `
+    <span class="datetime">[${time}]</span> 
+    <span class="type">[${type}]</span> 
+    <span class="text">${user_name}</span>
+    `;
+
+    logDiv.prepend(line);
+
+    // удаляем старые записи
+    while (logDiv.children.length > MAX_LOG_LINES) {
+        logDiv.removeChild(logDiv.lastChild);
+    }
 }
