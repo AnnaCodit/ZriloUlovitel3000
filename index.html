@@ -84,7 +84,11 @@
         };
 
         // --- ФУНКЦИЯ ПРОВЕРКИ ---
+        const BOTS = ['streamelements', 'jeetbot', 'potatbotat', 'frostytoolsdotcom', 'moobot', 'nightbot'];
+
         function checkViewer(username, event = '') {
+            if (BOTS.includes(username)) return;
+
             const tx = db.transaction(["viewers"], "readwrite");
             const store = tx.objectStore("viewers");
             const req = store.get(username);
