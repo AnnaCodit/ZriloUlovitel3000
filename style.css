@@ -1,0 +1,38 @@
+body {
+    background-color: #050505;
+    color: #00ff41;
+    font-family: 'Consolas', 'Courier New', monospace;
+    padding: 20px;
+}
+
+h2 {
+    border-bottom: 2px solid #00ff41;
+    display: inline-block;
+    padding-bottom: 5px;
+}
+
+#log {
+    margin-top: 20px;
+    border: 1px dashed #333;
+    padding: 10px;
+    height: 500px;
+    overflow-y: scroll;
+    background: #000;
+    font-size: 14px;
+}
+
+.new-viewer {
+    color: #ff0055;
+    text-shadow: 0 0 5px #ff0055;
+    font-weight: bold;
+}
+
+.old-viewer {
+    color: #444;
+}
+
+.system {
+    color: #00ffff;
+}
+
+.clear-db-button {margin-top: 10px; background-color: #333; color: #00ff41; border: 1px solid #00ff41; padding: 5px 10px;}

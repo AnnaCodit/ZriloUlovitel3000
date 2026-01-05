@@ -5,151 +5,17 @@
     <meta charset="UTF-8">
     <title>Twitch Lurker Detector (TMI.js)</title>
     <script src="https://github.com/tmijs/tmi.js/releases/download/v1.8.5/tmi.min.js"></script>
-    <style>
-        body {
-            background-color: #050505;
-            color: #00ff41;
-            font-family: 'Consolas', 'Courier New', monospace;
-            padding: 20px;
-        }
-
-        h2 {
-            border-bottom: 2px solid #00ff41;
-            display: inline-block;
-            padding-bottom: 5px;
-        }
-
-        #log {
-            margin-top: 20px;
-            border: 1px dashed #333;
-            padding: 10px;
-            height: 500px;
-            overflow-y: scroll;
-            background: #000;
-            font-size: 14px;
-        }
-
-        .new-viewer {
-            color: #ff0055;
-            text-shadow: 0 0 5px #ff0055;
-            font-weight: bold;
-        }
-
-        .old-viewer {
-            color: #444;
-        }
-
-        .system {
-            color: #00ffff;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
     <h2>🤖 System: TMI.js Join Scanner</h2>
     <div>Status: <span id="status" style="color:orange">Connecting...</span></div>
-    <button id="clearBtn"
-        style="margin-top: 10px; background-color: #333; color: #00ff41; border: 1px solid #00ff41; padding: 5px 10px;">Clear
-        Viewers DB</button>
+    <button id="clearBtn" class="clear-db-button">Clear Viewers DB</button>
     <div id="log"></div>
-    <script>
-        // --- КОНФИГУРАЦИЯ ---
-        const MY_CHANNEL = 'FRA3A'; // Впиши ник строчными буквами
-
-        // --- БАЗА ДАННЫХ (INDEXED DB) ---
-        // Логика базы осталась такой же, она надежная
-        const dbName = "TwitchViewerDB";
-        let db;
-        const request = indexedDB.open(dbName, 1);
-
-        request.onupgradeneeded = (e) => {
-            db = e.target.result;
-            if (!db.objectStoreNames.contains("viewers")) {
-                db.createObjectStore("viewers", { keyPath: "username" });
-            }
-        };
-
-        request.onsuccess = (e) => {
-            db = e.target.result;
-            logToScreen("DB", "IndexedDB connected.", "system");
-            startTwitchListener(); // Запускаем TMI только когда база готова
-            document.getElementById('clearBtn').addEventListener('click', () => {
-                const tx = db.transaction(["viewers"], "readwrite");
-                const store = tx.objectStore("viewers");
-                const clearReq = store.clear();
-                clearReq.onsuccess = () => {
-                    logToScreen("DB", "Viewers database cleared.", "system");
-                };
-            });
-        };
-
-        // --- ФУНКЦИЯ ПРОВЕРКИ ---
-        const BOTS = ['streamelements', 'jeetbot', 'potatbotat', 'frostytoolsdotcom', 'moobot', 'nightbot'];
-
-        function checkViewer(username, event = '') {
-            if (BOTS.includes(username)) return;
-
-            const tx = db.transaction(["viewers"], "readwrite");
-            const store = tx.objectStore("viewers");
-            const req = store.get(username);
-
-            req.onsuccess = () => {
-                if (req.result) {
-                    // Старичок
-                    if (event !== 'message') {
-                        logToScreen("JOIN", `${username}`, "old-viewer");
-                    }
-                } else {
-                    // Новенький
-                    store.add({ username: username, firstSeen: Date.now() });
-                    logToScreen("ALERT", `>>> NEW VIEWER: ${username} <<<`, "new-viewer");
-                }
-            };
-        }
-
-        // --- ЛОГИКА TMI.JS ---
-        function startTwitchListener() {
-            // Настраиваем клиент. identity не нужен, будем анонимами (justinfan)
-            const client = new tmi.Client({
-                connection: {
-                    secure: true,
-                    reconnect: true
-                },
-                channels: [MY_CHANNEL]
-            });
-
-            client.connect().catch(console.error);
-
-            // Событие подключения
-            client.on('connected', (address, port) => {
-                document.getElementById('status').innerText = 'Online & Scanning';
-                document.getElementById('status').style.color = '#00ff41';
-                logToScreen("SYS", `Connected to ${address}:${port}`, "system");
-            });
-
-            // Событие JOIN (Кто-то зашел)
-            client.on('join', (channel, username, self) => {
-                if (self) return; // Игнорируем себя (хотя для анонима это редкость)
-                checkViewer(username);
-            });
-
-            // (Опционально) Событие MESSAGE - если хочешь ловить тех, кто написал, но join не сработал
-            client.on('message', (channel, tags, message, self) => {
-                // tags['username'] - это ник пишущего
-                checkViewer(tags['username'], 'message');
-            });
-        }
-
-        // --- ВЫВОД НА ЭКРАН ---
-        function logToScreen(type, text, cssClass) {
-            const logDiv = document.getElementById('log');
-            const line = document.createElement('div');
-            const time = new Date().toLocaleTimeString('ru-RU');
-            line.innerHTML = `<span style="opacity:0.5">[${time}]</span> [${type}] <span class="${cssClass}">${text}</span>`;
-            logDiv.appendChild(line);
-            logDiv.scrollTop = logDiv.scrollHeight;
-        }
-    </script>
+    <!-- js -->
+    <script src="config.js"></script>
+    <script src="script.js"></script>
 </body>
 
 </html>
