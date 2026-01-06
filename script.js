@@ -2,12 +2,19 @@
 // --- БАЗА ДАННЫХ (INDEXED DB) ---
 const dbName = "TwitchViewerDB";
 let db;
-const request = indexedDB.open(dbName, 1);
+const request = indexedDB.open(dbName, 2);
 
 request.onupgradeneeded = (e) => {
     db = e.target.result;
+    let store;
     if (!db.objectStoreNames.contains("viewers")) {
-        db.createObjectStore("viewers", { keyPath: "username" });
+        store = db.createObjectStore("viewers", { keyPath: "username" });
+    } else {
+        store = e.target.transaction.objectStore("viewers");
+    }
+
+    if (!store.indexNames.contains("firstSeen")) {
+        store.createIndex("firstSeen", "firstSeen", { unique: false });
     }
 };
 
@@ -15,17 +22,37 @@ request.onsuccess = (e) => {
     db = e.target.result;
     logToScreen("DB", "IndexedDB connected.", "system");
     startTwitchListener(); // Запускаем TMI только когда база готова
+
+    updateNewViewersCount();
+    setInterval(updateNewViewersCount, 60000);
+
     document.getElementById('clearBtn').addEventListener('click', () => {
         const tx = db.transaction(["viewers"], "readwrite");
         const store = tx.objectStore("viewers");
         const clearReq = store.clear();
         clearReq.onsuccess = () => {
             logToScreen("DB", "Viewers database cleared.", "system");
+            updateNewViewersCount();
         };
     });
 };
 
 // --- ФУНКЦИЯ ПРОВЕРКИ ---
+
+function updateNewViewersCount() {
+    if (!db) return;
+    const tx = db.transaction(["viewers"], "readonly");
+    const store = tx.objectStore("viewers");
+    const index = store.index("firstSeen");
+    const range = IDBKeyRange.lowerBound(Date.now() - 24 * 60 * 60 * 1000);
+    const countRequest = index.count(range);
+
+    countRequest.onsuccess = () => {
+        const count = countRequest.result;
+        const el = document.getElementById('new-viewers');
+        if (el) el.innerText = count;
+    };
+}
 
 function checkViewer(username, event = '') {
 
@@ -52,6 +79,7 @@ function checkViewer(username, event = '') {
             // Новенький
             store.add({ username: username, firstSeen: Date.now() });
             logToScreen("ALERT", `${username}`, "new");
+            updateNewViewersCount();
         }
     };
 }
