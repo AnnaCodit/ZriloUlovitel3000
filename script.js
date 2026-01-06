@@ -1,4 +1,6 @@
 
+document.getElementById('channel').innerText = MY_TWITCH_CHANNEL;
+
 // --- БАЗА ДАННЫХ (INDEXED DB) ---
 const dbName = "TwitchViewerDB";
 let db;
