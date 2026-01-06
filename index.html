@@ -3,16 +3,22 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Lurker Detector (TMI.js)</title>
+    <title>Зрилоуловитель 3000</title>
     <script src="https://github.com/tmijs/tmi.js/releases/download/v1.8.5/tmi.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h2>🤖 System: TMI.js Join Scanner</h2>
-    <div>Status: <span id="status" style="color:orange">Connecting...</span></div>
-    <button id="clearBtn" class="clear-db-button">Clear Viewers DB</button>
+    <div class="logo">🤖 Зрилоуловитель 3000</div>
+    <div class="panel">
+        <div class="info">
+            <div>Status: <span id="status" style="color:orange">Connecting...</span></div>
+            <div class="new-viewers">Новеньких за 24 часа: <span id="new-viewers"></span></div>
+        </div>
+        <button id="clearBtn" class="clear-db-button">Clear Viewers DB</button>
+    </div>
     <div id="log"></div>
+    <div class="channel">Канал: <span id="channel"></span></div>
     <!-- js -->
     <script src="config.js"></script>
     <script src="script.js"></script>

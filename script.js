@@ -44,7 +44,9 @@ function checkViewer(username, event = '') {
             // Старичок
             // if (event !== 'message') {
             // }
-            logToScreen("JOIN", `${username}`, user_class);
+            if (SHOW_OLD_VIEWERS || COOL_USERS.includes(username)) {
+                logToScreen("JOIN", `${username}`, user_class);
+            }
             // logToScreen("JOIN", `${username}`, "old-viewer");
         } else {
             // Новенький
@@ -108,7 +110,6 @@ function logToScreen(type, user_name, css_class) {
 
     // удаляем старые записи
     while (logDiv.children.length > MAX_LOG_LINES) {
-
         logDiv.removeChild(logDiv.lastChild);
     }
 }
