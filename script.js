@@ -62,7 +62,7 @@ function startTwitchListener() {
             secure: true,
             reconnect: true
         },
-        channels: [MY_CHANNEL]
+        channels: [MY_TWITCH_CHANNEL]
     });
 
     client.connect().catch(console.error);
@@ -90,7 +90,6 @@ function startTwitchListener() {
 // --- ВЫВОД НА ЭКРАН ---
 function logToScreen(type, user_name, css_class) {
 
-
     const logDiv = document.getElementById('log');
     const line = document.createElement('div');
     line.classList.add('line', css_class);
@@ -100,15 +99,16 @@ function logToScreen(type, user_name, css_class) {
     if (last_element) last_element.classList.add('separated')
 
     line.innerHTML = `
-    <span class="datetime">[${time}]</span> 
-    <span class="type">[${type}]</span> 
-    <span class="text">${user_name}</span>
+        <span class="datetime">[${time}]</span> 
+        <span class="type">[${type}]</span> 
+        <span class="text">${user_name}</span>
     `;
 
     logDiv.prepend(line);
 
     // удаляем старые записи
     while (logDiv.children.length > MAX_LOG_LINES) {
+
         logDiv.removeChild(logDiv.lastChild);
     }
 }
