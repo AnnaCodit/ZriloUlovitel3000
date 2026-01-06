@@ -92,7 +92,7 @@ function logToScreen(type, user_name, css_class) {
 
     const logDiv = document.getElementById('log');
     const line = document.createElement('div');
-    line.classList.add('line', css_class);
+    line.classList.add('line', css_class, 'just-added');
     const time = new Date().toLocaleTimeString('ru-RU');
 
     let last_element = logDiv.firstChild;
