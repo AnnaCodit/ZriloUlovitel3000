@@ -22,7 +22,9 @@ request.onupgradeneeded = (e) => {
 
 request.onsuccess = (e) => {
     db = e.target.result;
-    logToScreen("DB", "IndexedDB connected.", "system");
+    logToScreen("IndexedDB connected.", "system");
+    // console.log("IndexedDB connected.");
+
     startTwitchListener(); // Запускаем TMI только когда база готова
 
     updateNewViewersCount();
@@ -33,7 +35,7 @@ request.onsuccess = (e) => {
         const store = tx.objectStore("viewers");
         const clearReq = store.clear();
         clearReq.onsuccess = () => {
-            logToScreen("DB", "Viewers database cleared.", "system");
+            logToScreen("Viewers database cleared.", "system");
             updateNewViewersCount();
         };
     });
@@ -74,13 +76,13 @@ function checkViewer(username, event = '') {
             // if (event !== 'message') {
             // }
             if (SHOW_OLD_VIEWERS || COOL_USERS.includes(username)) {
-                logToScreen("JOIN", `${username}`, user_class);
+                showTwitchUser("JOIN", `${username}`, user_class);
             }
             // logToScreen("JOIN", `${username}`, "old-viewer");
         } else {
             // Новенький
             store.add({ username: username, firstSeen: Date.now() });
-            logToScreen("ALERT", `${username}`, "new");
+            showTwitchUser("ALERT", `${username}`, "new");
             updateNewViewersCount();
         }
     };
@@ -103,7 +105,7 @@ function startTwitchListener() {
     client.on('connected', (address, port) => {
         document.getElementById('status').innerText = 'Online & Scanning';
         document.getElementById('status').style.color = '#00ff41';
-        logToScreen("SYS", `Connected to ${address}:${port}`, "system");
+        logToScreen(`Connected to ${address}:${port}`, "system");
     });
 
     // Событие JOIN (Кто-то зашел)
@@ -119,21 +121,19 @@ function startTwitchListener() {
     });
 }
 
-// --- ВЫВОД НА ЭКРАН ---
-function logToScreen(type, user_name, css_class) {
 
+
+// --- ВЫВОД НА ЭКРАН ---
+function logToScreen(text, type) {
     const logDiv = document.getElementById('log');
     const line = document.createElement('div');
-    line.classList.add('line', css_class, 'just-added');
+    line.classList.add('line');
     const time = new Date().toLocaleTimeString('ru-RU');
 
-    let last_element = logDiv.firstChild;
-    if (last_element) last_element.classList.add('separated')
-
     line.innerHTML = `
-        <span class="datetime">[${time}]</span> 
-        <span class="type">[${type}]</span> 
-        <span class="text">${user_name}</span>
+        <div class="datetime">[${time}]</div> 
+        <div class="type">[${type}]</div> 
+        <div class="text">${text}</div> 
     `;
 
     logDiv.prepend(line);
@@ -143,3 +143,50 @@ function logToScreen(type, user_name, css_class) {
         logDiv.removeChild(logDiv.lastChild);
     }
 }
+
+// --- ВЫВОД НА ЭКРАН ---
+function showTwitchUser(type, user_name, css_class) {
+
+    const logDiv = document.getElementById('viewers');
+    const line = document.createElement('div');
+    line.classList.add('line', css_class, 'just-added');
+    const time = new Date().toLocaleTimeString('ru-RU');
+
+    let last_element = logDiv.firstChild;
+    if (last_element) last_element.classList.add('separated')
+
+    line.innerHTML = `
+        <div class="avatar">
+            <img src="https://decapi.me/twitch/avatar/${user_name}">
+        </div>
+        <div class="info">
+            <div class="text">${user_name}</div>
+            <div class="datetime">[${time}]</div> 
+            <div class="type">[${type}]</div> 
+        </div>
+    `;
+
+    logDiv.prepend(line);
+
+    // удаляем старые записи
+    while (logDiv.children.length > MAX_LOG_LINES) {
+        logDiv.removeChild(logDiv.lastChild);
+    }
+}
+
+async function getTwitchUserData(username) {
+    try {
+        const response = await fetch(`https://api.ivr.fi/v2/twitch/user?login=${username}`);
+        const data = await response.json();
+
+        if (data && data[0]) {
+            return data[0].logo; // Возвращает ссылку на картинку
+        } else {
+            console.error("Пользователь не найден");
+            return null;
+        }
+    } catch (error) {
+        console.error("Ошибка запроса:", error);
+    }
+}
+
