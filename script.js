@@ -145,7 +145,7 @@ function logToScreen(text, type) {
 }
 
 // --- ВЫВОД НА ЭКРАН ---
-function showTwitchUser(type, user_name, css_class) {
+async function showTwitchUser(type, user_name, css_class) {
 
     const logDiv = document.getElementById('viewers');
     const line = document.createElement('div');
@@ -155,12 +155,19 @@ function showTwitchUser(type, user_name, css_class) {
     let last_element = logDiv.firstChild;
     if (last_element) last_element.classList.add('separated')
 
+    let user_data = await getTwitchUserData(user_name);
+
+    if (!user_data.bio) user_data.bio = "";
+    // console.log(user_data);
+
     line.innerHTML = `
         <div class="avatar">
-            <img src="https://decapi.me/twitch/avatar/${user_name}">
+            <img src="${user_data.logo}">
         </div>
         <div class="info">
-            <div class="text">${user_name}</div>
+            <div class="nickname">${user_data.displayName}</div>
+            <div class="followers">${user_data.followers}</div>
+            <div class="bio">${user_data.bio}</div>
             <div class="datetime">[${time}]</div> 
             <div class="type">[${type}]</div> 
         </div>
@@ -180,7 +187,7 @@ async function getTwitchUserData(username) {
         const data = await response.json();
 
         if (data && data[0]) {
-            return data[0].logo; // Возвращает ссылку на картинку
+            return data[0]; // Возвращает ссылку на картинку
         } else {
             console.error("Пользователь не найден");
             return null;

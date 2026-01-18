@@ -37,22 +37,41 @@ body {
     border: 1px dashed #333;
     padding: 10px;
     background: #000;
-    font-size: 20px;
     margin-bottom: 10px;
 }
 
 .line {
-    color: #444;
+    color: #999;
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+
+.line .avatar img {
+    width: 150px;
+    border-radius: 10px;
+    overflow: hidden;
+
+}
+
+.line .avatar {}
+
+.line .followers {
+    font-size: 20px;
+    color: #666;
 }
 
 .line.separated {
-    border-top: 1px dashed #444;
+    /* border-top: 1px dashed #444; */
 }
 
-.line.new .text {
+.line.new .nickname {
     color: #ff0055;
     text-shadow: 0 0 5px #ff0055;
     font-weight: bold;
+    font-size: 40px;
 }
 
 .line.special .text {
