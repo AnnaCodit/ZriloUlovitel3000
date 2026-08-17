@@ -8,9 +8,14 @@ const PROFILE_LOAD_DELAY = 500;
 const VIEWER_FEED_LIMIT_KEY = "viewerFeedLimit";
 const AVATAR_SIZE_KEY = "viewerAvatarSize";
 const DEFAULT_AVATAR_SIZE = 150;
+const VIEWER_ONLY_NEW_KEY = "viewerOnlyNew";
+const VIEWER_REPEAT_INTERVAL_KEY = "viewerRepeatIntervalHours";
+const DEFAULT_REPEAT_INTERVAL_HOURS = 12;
 
 let viewerFeedLimit = MAX_LOG_LINES;
 let avatarSize = DEFAULT_AVATAR_SIZE;
+let onlyNewViewers = false;
+let repeatIntervalHours = DEFAULT_REPEAT_INTERVAL_HOURS;
 let profileLoadTimer = null;
 let profileQueueRunning = false;
 let profileRefreshRequested = false;
@@ -210,45 +215,78 @@ function showTwitchUser(type, user_name, css_class) {
 function initializeViewerSettings() {
     const feedLimitInput = document.getElementById('viewerFeedLimit');
     const avatarSizeInput = document.getElementById('avatarSize');
+    const onlyNewInput = document.getElementById('onlyNewViewers');
+    const repeatIntervalInput = document.getElementById('repeatIntervalHours');
 
     viewerFeedLimit = readNumberSetting(VIEWER_FEED_LIMIT_KEY, MAX_LOG_LINES, 1, 500);
     avatarSize = readNumberSetting(AVATAR_SIZE_KEY, DEFAULT_AVATAR_SIZE, 32, 300);
+    onlyNewViewers = readBooleanSetting(VIEWER_ONLY_NEW_KEY, false);
+    repeatIntervalHours = readNumberSetting(VIEWER_REPEAT_INTERVAL_KEY, DEFAULT_REPEAT_INTERVAL_HOURS, 1, Number.MAX_SAFE_INTEGER);
 
-    feedLimitInput.value = viewerFeedLimit;
-    avatarSizeInput.value = avatarSize;
+    if (feedLimitInput) feedLimitInput.value = viewerFeedLimit;
+    if (avatarSizeInput) avatarSizeInput.value = avatarSize;
+    if (onlyNewInput) onlyNewInput.checked = onlyNewViewers;
+    if (repeatIntervalInput) repeatIntervalInput.value = repeatIntervalHours;
+
     applyAvatarSize();
 
-    feedLimitInput.addEventListener('input', () => {
-        const value = Number.parseInt(feedLimitInput.value, 10);
-        if (!Number.isFinite(value)) return;
-        viewerFeedLimit = Math.min(500, Math.max(1, value));
-        writeNumberSetting(VIEWER_FEED_LIMIT_KEY, viewerFeedLimit);
-        trimViewerFeed();
-        scheduleVisibleProfilesLoad();
-    });
+    if (onlyNewInput) {
+        onlyNewInput.addEventListener('change', () => {
+            onlyNewViewers = onlyNewInput.checked;
+            writeBooleanSetting(VIEWER_ONLY_NEW_KEY, onlyNewViewers);
+        });
+    }
 
-    feedLimitInput.addEventListener('change', () => {
-        viewerFeedLimit = clampNumber(feedLimitInput.value, 1, 500, MAX_LOG_LINES);
-        feedLimitInput.value = viewerFeedLimit;
-        writeNumberSetting(VIEWER_FEED_LIMIT_KEY, viewerFeedLimit);
-        trimViewerFeed();
-        scheduleVisibleProfilesLoad();
-    });
+    if (repeatIntervalInput) {
+        repeatIntervalInput.addEventListener('input', () => {
+            const value = Number.parseInt(repeatIntervalInput.value, 10);
+            if (!Number.isFinite(value) || value < 1) return;
+            repeatIntervalHours = value;
+            writeNumberSetting(VIEWER_REPEAT_INTERVAL_KEY, repeatIntervalHours);
+        });
 
-    avatarSizeInput.addEventListener('input', () => {
-        const value = Number.parseInt(avatarSizeInput.value, 10);
-        if (!Number.isFinite(value)) return;
-        avatarSize = Math.min(300, Math.max(32, value));
-        writeNumberSetting(AVATAR_SIZE_KEY, avatarSize);
-        applyAvatarSize();
-    });
+        repeatIntervalInput.addEventListener('change', () => {
+            repeatIntervalHours = clampNumber(repeatIntervalInput.value, 1, Number.MAX_SAFE_INTEGER, DEFAULT_REPEAT_INTERVAL_HOURS);
+            repeatIntervalInput.value = repeatIntervalHours;
+            writeNumberSetting(VIEWER_REPEAT_INTERVAL_KEY, repeatIntervalHours);
+        });
+    }
 
-    avatarSizeInput.addEventListener('change', () => {
-        avatarSize = clampNumber(avatarSizeInput.value, 32, 300, DEFAULT_AVATAR_SIZE);
-        avatarSizeInput.value = avatarSize;
-        writeNumberSetting(AVATAR_SIZE_KEY, avatarSize);
-        applyAvatarSize();
-    });
+    if (feedLimitInput) {
+        feedLimitInput.addEventListener('input', () => {
+            const value = Number.parseInt(feedLimitInput.value, 10);
+            if (!Number.isFinite(value)) return;
+            viewerFeedLimit = Math.min(500, Math.max(1, value));
+            writeNumberSetting(VIEWER_FEED_LIMIT_KEY, viewerFeedLimit);
+            trimViewerFeed();
+            scheduleVisibleProfilesLoad();
+        });
+
+        feedLimitInput.addEventListener('change', () => {
+            viewerFeedLimit = clampNumber(feedLimitInput.value, 1, 500, MAX_LOG_LINES);
+            feedLimitInput.value = viewerFeedLimit;
+            writeNumberSetting(VIEWER_FEED_LIMIT_KEY, viewerFeedLimit);
+            trimViewerFeed();
+            scheduleVisibleProfilesLoad();
+        });
+    }
+
+    if (avatarSizeInput) {
+        avatarSizeInput.addEventListener('input', () => {
+            const value = Number.parseInt(avatarSizeInput.value, 10);
+            if (!Number.isFinite(value)) return;
+            avatarSize = Math.min(300, Math.max(32, value));
+            writeNumberSetting(AVATAR_SIZE_KEY, avatarSize);
+            applyAvatarSize();
+        });
+
+        avatarSizeInput.addEventListener('change', () => {
+            avatarSize = clampNumber(avatarSizeInput.value, 32, 300, DEFAULT_AVATAR_SIZE);
+            avatarSizeInput.value = avatarSize;
+            writeNumberSetting(AVATAR_SIZE_KEY, avatarSize);
+            applyAvatarSize();
+        });
+    }
 }
 
 function clampNumber(value, min, max, fallback) {
@@ -269,6 +307,25 @@ function readNumberSetting(key, fallback, min, max) {
 function writeNumberSetting(key, value) {
     try {
         localStorage.setItem(key, String(value));
+    } catch (error) {
+        console.warn("Не удалось сохранить настройку:", error);
+    }
+}
+
+function readBooleanSetting(key, fallback) {
+    try {
+        const item = localStorage.getItem(key);
+        if (item === null) return fallback;
+        return item === "true";
+    } catch (error) {
+        console.warn("Не удалось прочитать настройку:", error);
+        return fallback;
+    }
+}
+
+function writeBooleanSetting(key, value) {
+    try {
+        localStorage.setItem(key, String(Boolean(value)));
     } catch (error) {
         console.warn("Не удалось сохранить настройку:", error);
     }
