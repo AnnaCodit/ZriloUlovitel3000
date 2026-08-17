@@ -69,6 +69,13 @@ body {
     padding: 3px 5px;
 }
 
+.settings input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #00ff41;
+    cursor: pointer;
+}
+
 .input-with-unit {
     display: inline-flex;
     align-items: center;

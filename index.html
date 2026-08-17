@@ -19,6 +19,17 @@
             <details class="settings">
                 <summary>Настройки</summary>
                 <label>
+                    Показывать только новых
+                    <input id="onlyNewViewers" type="checkbox">
+                </label>
+                <label>
+                    Повторный визит через
+                    <span class="input-with-unit">
+                        <input id="repeatIntervalHours" type="number" min="1" step="1">
+                        <span>ч</span>
+                    </span>
+                </label>
+                <label>
                     Ников в ленте
                     <input id="viewerFeedLimit" type="number" min="1" max="500" step="1">
                 </label>
