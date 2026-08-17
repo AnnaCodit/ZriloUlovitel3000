@@ -1,3 +1,4 @@
 config.js
-tests/
-.superpowers/
+tests/*
+!tests/*.test.js
+.superpowers/
