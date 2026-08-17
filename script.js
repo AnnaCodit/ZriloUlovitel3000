@@ -9,13 +9,10 @@ const VIEWER_FEED_LIMIT_KEY = "viewerFeedLimit";
 const AVATAR_SIZE_KEY = "viewerAvatarSize";
 const DEFAULT_AVATAR_SIZE = 150;
 const VIEWER_ONLY_NEW_KEY = "viewerOnlyNew";
-const VIEWER_REPEAT_INTERVAL_KEY = "viewerRepeatIntervalHours";
-const DEFAULT_REPEAT_INTERVAL_HOURS = 12;
 
 let viewerFeedLimit = MAX_LOG_LINES;
 let avatarSize = DEFAULT_AVATAR_SIZE;
 let onlyNewViewers = false;
-let repeatIntervalHours = DEFAULT_REPEAT_INTERVAL_HOURS;
 let profileLoadTimer = null;
 let profileQueueRunning = false;
 let profileRefreshRequested = false;
@@ -92,9 +89,8 @@ function checkViewer(username, event = '') {
     // если бот - скип
     if (BOTS.includes(username)) return;
 
-    const isCool = COOL_USERS.includes(username);
-    const user_class = isCool ? 'special' : 'normal';
-    const now = Date.now();
+    let user_class = 'normal';
+    if (COOL_USERS.includes(username)) user_class = 'special';
 
     const tx = db.transaction(["viewers"], "readwrite");
     const store = tx.objectStore("viewers");
@@ -102,30 +98,13 @@ function checkViewer(username, event = '') {
 
     req.onsuccess = () => {
         if (req.result) {
-            // Зритель уже есть в базе
-            const record = req.result;
-            const previousSeen = record.lastSeen || record.firstSeen || 0;
-            const timeSinceLastSeen = now - previousSeen;
-            const thresholdMs = repeatIntervalHours * 60 * 60 * 1000;
-
-            // Обновляем lastSeen в базе
-            record.lastSeen = now;
-            store.put(record);
-
-            if (timeSinceLastSeen >= thresholdMs) {
-                if (isCool) {
-                    showTwitchUser("JOIN", `${username}`, user_class);
-                } else if (!onlyNewViewers) {
-                    showTwitchUser("JOIN", `${username}`, user_class);
-                }
+            // Старичок (уже есть в базе)
+            if (!onlyNewViewers || COOL_USERS.includes(username)) {
+                showTwitchUser("JOIN", `${username}`, user_class);
             }
         } else {
             // Абсолютно новый зритель
-            const addRequest = store.add({
-                username: username,
-                firstSeen: now,
-                lastSeen: now
-            });
+            const addRequest = store.add({ username: username, firstSeen: Date.now() });
             addRequest.onsuccess = scheduleNewViewersCountUpdate;
             showTwitchUser("ALERT", `${username}`, "new");
         }
@@ -230,17 +209,14 @@ function initializeViewerSettings() {
     const feedLimitInput = document.getElementById('viewerFeedLimit');
     const avatarSizeInput = document.getElementById('avatarSize');
     const onlyNewInput = document.getElementById('onlyNewViewers');
-    const repeatIntervalInput = document.getElementById('repeatIntervalHours');
 
     viewerFeedLimit = readNumberSetting(VIEWER_FEED_LIMIT_KEY, MAX_LOG_LINES, 1, 500);
     avatarSize = readNumberSetting(AVATAR_SIZE_KEY, DEFAULT_AVATAR_SIZE, 32, 300);
     onlyNewViewers = readBooleanSetting(VIEWER_ONLY_NEW_KEY, false);
-    repeatIntervalHours = readNumberSetting(VIEWER_REPEAT_INTERVAL_KEY, DEFAULT_REPEAT_INTERVAL_HOURS, 1, Number.MAX_SAFE_INTEGER);
 
     if (feedLimitInput) feedLimitInput.value = viewerFeedLimit;
     if (avatarSizeInput) avatarSizeInput.value = avatarSize;
     if (onlyNewInput) onlyNewInput.checked = onlyNewViewers;
-    if (repeatIntervalInput) repeatIntervalInput.value = repeatIntervalHours;
 
     applyAvatarSize();
 
@@ -248,21 +224,6 @@ function initializeViewerSettings() {
         onlyNewInput.addEventListener('change', () => {
             onlyNewViewers = onlyNewInput.checked;
             writeBooleanSetting(VIEWER_ONLY_NEW_KEY, onlyNewViewers);
-        });
-    }
-
-    if (repeatIntervalInput) {
-        repeatIntervalInput.addEventListener('input', () => {
-            const value = Number.parseInt(repeatIntervalInput.value, 10);
-            if (!Number.isFinite(value) || value < 1) return;
-            repeatIntervalHours = value;
-            writeNumberSetting(VIEWER_REPEAT_INTERVAL_KEY, repeatIntervalHours);
-        });
-
-        repeatIntervalInput.addEventListener('change', () => {
-            repeatIntervalHours = clampNumber(repeatIntervalInput.value, 1, Number.MAX_SAFE_INTEGER, DEFAULT_REPEAT_INTERVAL_HOURS);
-            repeatIntervalInput.value = repeatIntervalHours;
-            writeNumberSetting(VIEWER_REPEAT_INTERVAL_KEY, repeatIntervalHours);
         });
     }
 
