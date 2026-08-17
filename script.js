@@ -1,10 +1,25 @@
 
 document.getElementById('channel').innerText = MY_TWITCH_CHANNEL;
 
+const PROFILE_STORE_NAME = "profiles";
+const PROFILE_CACHE_TTL = 12 * 60 * 60 * 1000;
+const PROFILE_BATCH_SIZE = 50;
+const PROFILE_LOAD_DELAY = 500;
+const VIEWER_FEED_LIMIT_KEY = "viewerFeedLimit";
+const AVATAR_SIZE_KEY = "viewerAvatarSize";
+const DEFAULT_AVATAR_SIZE = 150;
+
+let viewerFeedLimit = MAX_LOG_LINES;
+let avatarSize = DEFAULT_AVATAR_SIZE;
+let profileLoadTimer = null;
+let profileQueueRunning = false;
+let profileRefreshRequested = false;
+let newViewersCountTimer = null;
+
 // --- БАЗА ДАННЫХ (INDEXED DB) ---
 const dbName = "TwitchViewerDB";
 let db;
-const request = indexedDB.open(dbName, 2);
+const request = indexedDB.open(dbName, 3);
 
 request.onupgradeneeded = (e) => {
     db = e.target.result;
@@ -18,6 +33,10 @@ request.onupgradeneeded = (e) => {
     if (!store.indexNames.contains("firstSeen")) {
         store.createIndex("firstSeen", "firstSeen", { unique: false });
     }
+
+    if (!db.objectStoreNames.contains(PROFILE_STORE_NAME)) {
+        db.createObjectStore(PROFILE_STORE_NAME, { keyPath: "username" });
+    }
 };
 
 request.onsuccess = (e) => {
@@ -25,16 +44,17 @@ request.onsuccess = (e) => {
     logToScreen("IndexedDB connected.", "system");
     // console.log("IndexedDB connected.");
 
+    initializeViewerSettings();
     startTwitchListener(); // Запускаем TMI только когда база готова
 
     updateNewViewersCount();
     setInterval(updateNewViewersCount, 60000);
 
     document.getElementById('clearBtn').addEventListener('click', () => {
-        const tx = db.transaction(["viewers"], "readwrite");
-        const store = tx.objectStore("viewers");
-        const clearReq = store.clear();
-        clearReq.onsuccess = () => {
+        const stores = ["viewers", PROFILE_STORE_NAME];
+        const tx = db.transaction(stores, "readwrite");
+        stores.forEach((storeName) => tx.objectStore(storeName).clear());
+        tx.oncomplete = () => {
             logToScreen("Viewers database cleared.", "system");
             updateNewViewersCount();
         };
@@ -56,6 +76,11 @@ function updateNewViewersCount() {
         const el = document.getElementById('new-viewers');
         if (el) el.innerText = count;
     };
+}
+
+function scheduleNewViewersCountUpdate() {
+    clearTimeout(newViewersCountTimer);
+    newViewersCountTimer = setTimeout(updateNewViewersCount, 250);
 }
 
 function checkViewer(username, event = '') {
@@ -81,9 +106,9 @@ function checkViewer(username, event = '') {
             // logToScreen("JOIN", `${username}`, "old-viewer");
         } else {
             // Новенький
-            store.add({ username: username, firstSeen: Date.now() });
+            const addRequest = store.add({ username: username, firstSeen: Date.now() });
+            addRequest.onsuccess = scheduleNewViewersCountUpdate;
             showTwitchUser("ALERT", `${username}`, "new");
-            updateNewViewersCount();
         }
     };
 }
@@ -145,55 +170,291 @@ function logToScreen(text, type) {
 }
 
 // --- ВЫВОД НА ЭКРАН ---
-async function showTwitchUser(type, user_name, css_class) {
+function showTwitchUser(type, user_name, css_class) {
 
     const logDiv = document.getElementById('viewers');
     const line = document.createElement('div');
     line.classList.add('line', css_class, 'just-added');
+    line.dataset.username = user_name.toLowerCase();
     const time = new Date().toLocaleTimeString('ru-RU');
 
     let last_element = logDiv.firstChild;
     if (last_element) last_element.classList.add('separated')
 
-    let user_data = await getTwitchUserData(user_name);
-
-    if (!user_data.bio) user_data.bio = "";
-    // console.log(user_data);
-
     line.innerHTML = `
         <div class="avatar">
-            <img src="${user_data.logo}">
+            <img hidden>
         </div>
         <div class="info">
-            <div class="nickname">${user_data.displayName}</div>
-            <div class="followers">${user_data.followers}</div>
-            <div class="bio">${user_data.bio}</div>
+            <div class="nickname"></div>
+            <div class="followers"></div>
+            <div class="bio"></div>
             <div class="datetime">[${time}]</div> 
             <div class="type">[${type}]</div> 
         </div>
     `;
 
+    line.querySelector('.nickname').textContent = user_name;
+    line.querySelector('.avatar img').alt = user_name;
+
     logDiv.prepend(line);
 
     // удаляем старые записи
-    while (logDiv.children.length > MAX_LOG_LINES) {
+    while (logDiv.children.length > viewerFeedLimit) {
+        logDiv.removeChild(logDiv.lastChild);
+    }
+
+    scheduleVisibleProfilesLoad();
+}
+
+function initializeViewerSettings() {
+    const feedLimitInput = document.getElementById('viewerFeedLimit');
+    const avatarSizeInput = document.getElementById('avatarSize');
+
+    viewerFeedLimit = readNumberSetting(VIEWER_FEED_LIMIT_KEY, MAX_LOG_LINES, 1, 500);
+    avatarSize = readNumberSetting(AVATAR_SIZE_KEY, DEFAULT_AVATAR_SIZE, 32, 300);
+
+    feedLimitInput.value = viewerFeedLimit;
+    avatarSizeInput.value = avatarSize;
+    applyAvatarSize();
+
+    feedLimitInput.addEventListener('input', () => {
+        const value = Number.parseInt(feedLimitInput.value, 10);
+        if (!Number.isFinite(value)) return;
+        viewerFeedLimit = Math.min(500, Math.max(1, value));
+        writeNumberSetting(VIEWER_FEED_LIMIT_KEY, viewerFeedLimit);
+        trimViewerFeed();
+        scheduleVisibleProfilesLoad();
+    });
+
+    feedLimitInput.addEventListener('change', () => {
+        viewerFeedLimit = clampNumber(feedLimitInput.value, 1, 500, MAX_LOG_LINES);
+        feedLimitInput.value = viewerFeedLimit;
+        writeNumberSetting(VIEWER_FEED_LIMIT_KEY, viewerFeedLimit);
+        trimViewerFeed();
+        scheduleVisibleProfilesLoad();
+    });
+
+    avatarSizeInput.addEventListener('input', () => {
+        const value = Number.parseInt(avatarSizeInput.value, 10);
+        if (!Number.isFinite(value)) return;
+        avatarSize = Math.min(300, Math.max(32, value));
+        writeNumberSetting(AVATAR_SIZE_KEY, avatarSize);
+        applyAvatarSize();
+    });
+
+    avatarSizeInput.addEventListener('change', () => {
+        avatarSize = clampNumber(avatarSizeInput.value, 32, 300, DEFAULT_AVATAR_SIZE);
+        avatarSizeInput.value = avatarSize;
+        writeNumberSetting(AVATAR_SIZE_KEY, avatarSize);
+        applyAvatarSize();
+    });
+}
+
+function clampNumber(value, min, max, fallback) {
+    const number = Number.parseInt(value, 10);
+    if (!Number.isFinite(number)) return fallback;
+    return Math.min(max, Math.max(min, number));
+}
+
+function readNumberSetting(key, fallback, min, max) {
+    try {
+        return clampNumber(localStorage.getItem(key), min, max, fallback);
+    } catch (error) {
+        console.warn("Не удалось прочитать настройку:", error);
+        return fallback;
+    }
+}
+
+function writeNumberSetting(key, value) {
+    try {
+        localStorage.setItem(key, String(value));
+    } catch (error) {
+        console.warn("Не удалось сохранить настройку:", error);
+    }
+}
+
+function applyAvatarSize() {
+    document.documentElement.style.setProperty('--viewer-avatar-size', `${avatarSize}px`);
+}
+
+function trimViewerFeed() {
+    const logDiv = document.getElementById('viewers');
+    while (logDiv.children.length > viewerFeedLimit) {
         logDiv.removeChild(logDiv.lastChild);
     }
 }
 
-async function getTwitchUserData(username) {
-    try {
-        const response = await fetch(`https://api.ivr.fi/v2/twitch/user?login=${username}`);
-        const data = await response.json();
+function scheduleVisibleProfilesLoad() {
+    clearTimeout(profileLoadTimer);
+    profileLoadTimer = setTimeout(() => {
+        profileLoadTimer = null;
+        profileRefreshRequested = true;
+        processVisibleProfiles();
+    }, PROFILE_LOAD_DELAY);
+}
 
-        if (data && data[0]) {
-            return data[0]; // Возвращает ссылку на картинку
-        } else {
-            console.error("Пользователь не найден");
-            return null;
+function getVisibleUsernames() {
+    const usernames = new Set();
+    document.querySelectorAll('#viewers .line[data-username]').forEach((line) => {
+        usernames.add(line.dataset.username);
+    });
+    return Array.from(usernames);
+}
+
+async function processVisibleProfiles() {
+    if (profileQueueRunning) return;
+    profileQueueRunning = true;
+
+    try {
+        while (profileRefreshRequested) {
+            profileRefreshRequested = false;
+            const usernames = getVisibleUsernames();
+            const cachedProfiles = await getCachedProfiles(usernames);
+            const profilesToLoad = [];
+            const now = Date.now();
+
+            usernames.forEach((username) => {
+                const cached = cachedProfiles.get(username);
+                if (cached && now - cached.fetchedAt < PROFILE_CACHE_TTL) {
+                    applyProfileToVisibleCards(username, cached.data);
+                } else {
+                    profilesToLoad.push(username);
+                }
+            });
+
+            for (let index = 0; index < profilesToLoad.length; index += PROFILE_BATCH_SIZE) {
+                const visibleNow = new Set(getVisibleUsernames());
+                const batch = profilesToLoad
+                    .slice(index, index + PROFILE_BATCH_SIZE)
+                    .filter((username) => visibleNow.has(username));
+
+                if (batch.length === 0) continue;
+
+                const profiles = await getTwitchUsersData(batch);
+                await cacheProfileBatch(batch, profiles);
+                profiles.forEach((profile, username) => {
+                    applyProfileToVisibleCards(username, profile);
+                });
+            }
         }
     } catch (error) {
-        console.error("Ошибка запроса:", error);
+        console.error("Ошибка загрузки данных пользователей:", error);
+    } finally {
+        profileQueueRunning = false;
+        if (profileRefreshRequested) processVisibleProfiles();
     }
+}
+
+function getCachedProfiles(usernames) {
+    if (usernames.length === 0) return Promise.resolve(new Map());
+
+    const tx = db.transaction([PROFILE_STORE_NAME], "readonly");
+    const store = tx.objectStore(PROFILE_STORE_NAME);
+    const requests = usernames.map((username) => new Promise((resolve, reject) => {
+        const getRequest = store.get(username);
+        getRequest.onsuccess = () => resolve(getRequest.result);
+        getRequest.onerror = () => reject(getRequest.error);
+    }));
+
+    return Promise.all(requests).then((records) => {
+        const profiles = new Map();
+        records.forEach((record) => {
+            if (record) profiles.set(record.username, record);
+        });
+        return profiles;
+    });
+}
+
+function cacheProfileBatch(usernames, profiles) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction([PROFILE_STORE_NAME], "readwrite");
+        const store = tx.objectStore(PROFILE_STORE_NAME);
+        const fetchedAt = Date.now();
+
+        usernames.forEach((username) => {
+            store.put({
+                username: username,
+                fetchedAt: fetchedAt,
+                data: profiles.get(username) || null
+            });
+        });
+
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+    });
+}
+
+async function getTwitchUsersData(usernames) {
+    const url = `https://api.ivr.fi/v2/twitch/user?login=${encodeURIComponent(usernames.join(','))}`;
+    let lastError;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+        let timeout;
+        try {
+            const controller = new AbortController();
+            timeout = setTimeout(() => controller.abort(), 10000);
+            const response = await fetch(url, { signal: controller.signal });
+
+            if (!response.ok) {
+                const error = new Error(`IVR API ответил ${response.status}`);
+                error.retryAfter = Number.parseInt(response.headers.get('Retry-After'), 10);
+                throw error;
+            }
+
+            const data = await response.json();
+            const profiles = new Map();
+
+            if (Array.isArray(data)) {
+                data.forEach((profile) => {
+                    if (profile && profile.login) {
+                        profiles.set(profile.login.toLowerCase(), profile);
+                    }
+                });
+            }
+
+            return profiles;
+        } catch (error) {
+            lastError = error;
+            if (attempt === 0) {
+                const delay = Number.isFinite(error.retryAfter) ? error.retryAfter * 1000 : 1000;
+                await wait(delay);
+            }
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    throw lastError;
+}
+
+function applyProfileToVisibleCards(username, userData) {
+    if (!userData) return;
+
+    document.querySelectorAll('#viewers .line[data-username]').forEach((line) => {
+        if (line.dataset.username !== username) return;
+
+        const image = line.querySelector('.avatar img');
+        const nickname = line.querySelector('.nickname');
+        const followers = line.querySelector('.followers');
+        const bio = line.querySelector('.bio');
+
+        nickname.textContent = userData.displayName || userData.login || username;
+        followers.textContent = userData.followers ?? '';
+        bio.textContent = userData.bio || '';
+
+        if (userData.logo) {
+            image.hidden = false;
+            image.src = userData.logo;
+            image.onerror = () => {
+                image.hidden = true;
+            };
+        }
+    });
+}
+
+function wait(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 

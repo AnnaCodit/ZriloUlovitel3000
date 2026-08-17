@@ -15,7 +15,23 @@
             <div>Status: <span id="status" style="color:orange">Connecting...</span></div>
             <div class="new-viewers">Новеньких за 24 часа: <span id="new-viewers"></span></div>
         </div>
-        <button id="clearBtn" class="clear-db-button">Clear Viewers DB</button>
+        <div class="panel-actions">
+            <details class="settings">
+                <summary>Настройки</summary>
+                <label>
+                    Ников в ленте
+                    <input id="viewerFeedLimit" type="number" min="1" max="500" step="1">
+                </label>
+                <label>
+                    Размер аватарки
+                    <span class="input-with-unit">
+                        <input id="avatarSize" type="number" min="32" max="300" step="1">
+                        <span>px</span>
+                    </span>
+                </label>
+            </details>
+            <button id="clearBtn" class="clear-db-button">Clear Viewers DB</button>
+        </div>
     </div>
     <div id="viewers"></div>
     <div id="log"></div>
