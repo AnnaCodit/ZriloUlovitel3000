@@ -89,12 +89,12 @@ function scheduleNewViewersCountUpdate() {
 }
 
 function checkViewer(username, event = '') {
-
     // если бот - скип
     if (BOTS.includes(username)) return;
 
-    let user_class = 'normal';
-    if (COOL_USERS.includes(username)) user_class = 'special';
+    const isCool = COOL_USERS.includes(username);
+    const user_class = isCool ? 'special' : 'normal';
+    const now = Date.now();
 
     const tx = db.transaction(["viewers"], "readwrite");
     const store = tx.objectStore("viewers");
@@ -102,16 +102,30 @@ function checkViewer(username, event = '') {
 
     req.onsuccess = () => {
         if (req.result) {
-            // Старичок
-            // if (event !== 'message') {
-            // }
-            if (SHOW_OLD_VIEWERS || COOL_USERS.includes(username)) {
-                showTwitchUser("JOIN", `${username}`, user_class);
+            // Зритель уже есть в базе
+            const record = req.result;
+            const previousSeen = record.lastSeen || record.firstSeen || 0;
+            const timeSinceLastSeen = now - previousSeen;
+            const thresholdMs = repeatIntervalHours * 60 * 60 * 1000;
+
+            // Обновляем lastSeen в базе
+            record.lastSeen = now;
+            store.put(record);
+
+            if (timeSinceLastSeen >= thresholdMs) {
+                if (isCool) {
+                    showTwitchUser("JOIN", `${username}`, user_class);
+                } else if (!onlyNewViewers) {
+                    showTwitchUser("JOIN", `${username}`, user_class);
+                }
             }
-            // logToScreen("JOIN", `${username}`, "old-viewer");
         } else {
-            // Новенький
-            const addRequest = store.add({ username: username, firstSeen: Date.now() });
+            // Абсолютно новый зритель
+            const addRequest = store.add({
+                username: username,
+                firstSeen: now,
+                lastSeen: now
+            });
             addRequest.onsuccess = scheduleNewViewersCountUpdate;
             showTwitchUser("ALERT", `${username}`, "new");
         }
