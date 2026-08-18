@@ -161,13 +161,19 @@ function createTestEnvironment(options = {}) {
     const shownLogEvents = [];
     let currentTime = options.now || Date.now();
 
-    let lastOpenReq = null;
+    let reloadCount = 0;
+    const mockLocation = {
+        reload: () => { reloadCount++; }
+    };
+
     const sandbox = {
         MY_TWITCH_CHANNEL: options.channel || 'testchannel',
         BOTS: options.bots || ['streamelements', 'nightbot', 'fossabot'],
         COOL_USERS: options.coolUsers || ['farostg', 'annacodit'],
         MAX_LOG_LINES: 50,
         localStorage: mockLocalStorage,
+        window: { location: mockLocation },
+        location: mockLocation,
         document: {
             getElementById: (id) => getOrCreateElement(id),
             querySelector: (sel) => getOrCreateElement("mock_sel_" + sel),
@@ -255,6 +261,7 @@ function createTestEnvironment(options = {}) {
         localStorage: mockLocalStorage,
         getMockElement: (id) => getOrCreateElement(id),
         getTransactionCount: () => transactionCount,
+        getReloadCount: () => reloadCount,
         setNow(ts) {
             currentTime = ts;
         },
@@ -499,6 +506,34 @@ test("Test 8: UI инпут twitchChannel сохраняет канал в local
 
     assert.strictEqual(env2.localStorage.getItem("twitchChannel"), "newstreamerchannel", "Нормализованный канал сохранен в localStorage");
     assert.strictEqual(env2.ctx.getTwitchChannel(), "newstreamerchannel");
+});
+
+// ==========================================
+// TEST 9: Кнопка сохранения настроек и перезагрузка
+// ==========================================
+test("Test 9: Кнопка 'Сохранить' сохраняет все параметры в localStorage и вызывает перезагрузку страницы", () => {
+    const env = createTestEnvironment();
+
+    const channelInput = env.getMockElement("twitchChannel");
+    const onlyNewInput = env.getMockElement("onlyNewViewers");
+    const feedLimitInput = env.getMockElement("viewerFeedLimit");
+    const avatarSizeInput = env.getMockElement("avatarSize");
+    const saveBtn = env.getMockElement("saveSettingsBtn");
+
+    channelInput.value = " #MyCustomStreamer ";
+    onlyNewInput.checked = true;
+    feedLimitInput.value = "75";
+    avatarSizeInput.value = "200";
+
+    assert.strictEqual(env.getReloadCount(), 0, "До нажатия кнопки reload не вызывался");
+
+    saveBtn.dispatchEvent("click");
+
+    assert.strictEqual(env.localStorage.getItem("twitchChannel"), "mycustomstreamer", "Канал сохранен");
+    assert.strictEqual(env.localStorage.getItem("viewerOnlyNew"), "true", "onlyNewViewers сохранен");
+    assert.strictEqual(env.localStorage.getItem("viewerFeedLimit"), "75", "feedLimit сохранен");
+    assert.strictEqual(env.localStorage.getItem("viewerAvatarSize"), "200", "avatarSize сохранен");
+    assert.strictEqual(env.getReloadCount(), 1, "Перезагрузка страницы была вызвана 1 раз");
 });
 
 // --- RUNNER ---

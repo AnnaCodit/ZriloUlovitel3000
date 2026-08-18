@@ -86,6 +86,29 @@ body {
     gap: 4px;
 }
 
+.save-settings-button {
+    background-color: #003311;
+    color: #00ff41;
+    border: 1px solid #00ff41;
+    padding: 6px 12px;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    width: 100%;
+    cursor: pointer;
+    font: inherit;
+    font-weight: bold;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease;
+}
+
+.save-settings-button:hover {
+    background-color: #005522;
+}
+
+.save-settings-button:active {
+    background-color: #007733;
+}
+
 .clear-db-button {
     background-color: #333;
     color: red;

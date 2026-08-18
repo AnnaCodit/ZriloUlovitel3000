@@ -310,7 +310,7 @@ function initializeViewerSettings() {
 
     if (channelInput) {
         channelInput.addEventListener('change', () => {
-            const newChannel = channelInput.value.replace(/^#/, '').trim().toLowerCase();
+            const newChannel = channelInput.value.trim().replace(/^#/, '').trim().toLowerCase();
             channelInput.value = newChannel;
             if (newChannel === currentTwitchChannel) return;
 
@@ -395,6 +395,37 @@ function initializeViewerSettings() {
             writeNumberSetting(AVATAR_SIZE_KEY, avatarSize);
             applyAvatarSize();
         });
+    }
+
+    const saveBtn = document.getElementById('saveSettingsBtn');
+    if (saveBtn && !saveBtn._hasSaveListener) {
+        saveBtn._hasSaveListener = true;
+        saveBtn.addEventListener('click', () => {
+            if (channelInput) {
+                const newChannel = channelInput.value.trim().replace(/^#/, '').trim().toLowerCase();
+                writeStringSetting(TWITCH_CHANNEL_KEY, newChannel);
+            }
+            if (onlyNewInput) {
+                writeBooleanSetting(VIEWER_ONLY_NEW_KEY, onlyNewInput.checked);
+            }
+            if (feedLimitInput) {
+                const limit = clampNumber(feedLimitInput.value, 1, 500, MAX_LOG_LINES);
+                writeNumberSetting(VIEWER_FEED_LIMIT_KEY, limit);
+            }
+            if (avatarSizeInput) {
+                const size = clampNumber(avatarSizeInput.value, 32, 300, DEFAULT_AVATAR_SIZE);
+                writeNumberSetting(AVATAR_SIZE_KEY, size);
+            }
+            reloadPage();
+        });
+    }
+}
+
+function reloadPage() {
+    if (typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function') {
+        window.location.reload();
+    } else if (typeof location !== 'undefined' && typeof location.reload === 'function') {
+        location.reload();
     }
 }
 
