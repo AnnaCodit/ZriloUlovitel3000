@@ -8,9 +8,8 @@
     <script src="https://github.com/tmijs/tmi.js/releases/download/v1.8.5/tmi.min.js"></script>
     <script>
         (function () {
-            const version = window.__ASSET_VERSION__ || Date.now();
+            const version = Date.now();
             const withVersion = (file) => `${file}?v=${version}`;
-
             const cssFiles = ['style.css'];
             cssFiles.forEach((file) => {
                 const link = document.createElement('link');
@@ -35,21 +34,14 @@
         <div class="panel-actions">
             <details class="settings">
                 <summary>Настройки</summary>
-                <label>
-                    Канал
-                    <input id="twitchChannel" type="text" placeholder="название канала" autocomplete="off" spellcheck="false">
+                <label> Канал <input id="twitchChannel" type="text" placeholder="название канала" autocomplete="off"
+                        spellcheck="false">
                 </label>
-                <label>
-                    Показывать только новых
-                    <input id="onlyNewViewers" type="checkbox">
+                <label> Показывать только новых <input id="onlyNewViewers" type="checkbox">
                 </label>
-                <label>
-                    Ников в ленте
-                    <input id="viewerFeedLimit" type="number" min="1" max="500" step="1">
+                <label> Ников в ленте <input id="viewerFeedLimit" type="number" min="1" max="500" step="1">
                 </label>
-                <label>
-                    Размер аватарки
-                    <span class="input-with-unit">
+                <label> Размер аватарки <span class="input-with-unit">
                         <input id="avatarSize" type="number" min="32" max="300" step="1">
                         <span>px</span>
                     </span>
@@ -61,11 +53,10 @@
     <div id="viewers"></div>
     <div id="log"></div>
     <div class="channel">Канал: <span id="channel"></span></div>
-
     <!-- Динамическое подключение локальных скриптов с cache-busting -->
     <script>
         (function () {
-            const version = window.__ASSET_VERSION__ || Date.now();
+            const version = Date.now();
             const withVersion = (file) => `${file}?v=${version}`;
 
             // Порядок зависимостей: script.js выполняется после config.js
