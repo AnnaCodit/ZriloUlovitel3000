@@ -6,7 +6,15 @@
     <title>Зрилоуловитель 3000</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://github.com/tmijs/tmi.js/releases/download/v1.8.5/tmi.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <script>
+        (function() {
+            const ts = Date.now();
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = `style.css?t=${ts}`;
+            document.head.appendChild(link);
+        })();
+    </script>
 </head>
 
 <body>
@@ -45,9 +53,31 @@
     <div id="viewers"></div>
     <div id="log"></div>
     <div class="channel">Канал: <span id="channel"></span></div>
-    <!-- js -->
-    <script src="config.js"></script>
-    <script src="script.js"></script>
+    <!-- Динамическая загрузка скриптов с cache-busting -->
+    <script>
+        (function() {
+            const ts = Date.now();
+            function loadScript(src) {
+                return new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = `${src}?t=${ts}`;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.body.appendChild(script);
+                });
+            }
+
+            loadScript('config.js')
+                .catch((err) => {
+                    console.warn('config.js не загружен, используются значения по умолчанию:', err);
+                })
+                .finally(() => {
+                    loadScript('script.js').catch((err) => {
+                        console.error('Ошибка загрузки script.js:', err);
+                    });
+                });
+        })();
+    </script>
 </body>
 
 </html>
