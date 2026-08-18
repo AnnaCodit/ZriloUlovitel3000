@@ -479,7 +479,7 @@ async function processVisibleProfiles() {
     profileQueueRunning = true;
 
     try {
-        while (profileRefreshRequested) {
+        do {
             profileRefreshRequested = false;
             const usernames = getVisibleUsernames();
             const cachedProfiles = await getCachedProfiles(usernames);
@@ -488,7 +488,10 @@ async function processVisibleProfiles() {
 
             usernames.forEach((username) => {
                 const cached = cachedProfiles.get(username);
-                if (cached && now - cached.fetchedAt < PROFILE_CACHE_TTL) {
+                const isFresh = cached && (now - cached.fetchedAt < PROFILE_CACHE_TTL);
+                const hasAvgViewersField = cached && cached.data && ('avgViewers' in cached.data);
+
+                if (isFresh && hasAvgViewersField) {
                     applyProfileToVisibleCards(username, cached.data);
                 } else {
                     profilesToLoad.push(username);
@@ -519,6 +522,9 @@ async function processVisibleProfiles() {
                     } else if (avgViewers !== null && avgViewers !== undefined) {
                         profile = { login: username, avgViewers };
                         profiles.set(username, profile);
+                    } else {
+                        profile = { login: username, avgViewers: null };
+                        profiles.set(username, profile);
                     }
                 });
 
@@ -527,7 +533,7 @@ async function processVisibleProfiles() {
                     applyProfileToVisibleCards(username, profile);
                 });
             }
-        }
+        } while (profileRefreshRequested);
     } catch (error) {
         console.error("Ошибка загрузки данных пользователей:", error);
     } finally {

@@ -239,6 +239,58 @@ function setupTest(overrides = {}) {
         json: () => Promise.resolve({})
     }));
 
+    const profilesDb = new Map();
+    if (overrides.initialProfiles) {
+        for (const [k, v] of Object.entries(overrides.initialProfiles)) {
+            profilesDb.set(k, JSON.parse(JSON.stringify(v)));
+        }
+    }
+
+    const mockProfilesStore = {
+        get(username) {
+            const result = profilesDb.has(username)
+                ? JSON.parse(JSON.stringify(profilesDb.get(username)))
+                : undefined;
+            const req = { result, onsuccess: null, onerror: null };
+            queueMicrotask(() => {
+                if (typeof req.onsuccess === 'function') req.onsuccess({ target: req });
+            });
+            return req;
+        },
+        put(record) {
+            profilesDb.set(record.username, JSON.parse(JSON.stringify(record)));
+            const req = { result: record.username, onsuccess: null, onerror: null };
+            queueMicrotask(() => {
+                if (typeof req.onsuccess === 'function') req.onsuccess({ target: req });
+            });
+            return req;
+        }
+    };
+
+    const mockDb = {
+        transaction(stores, mode) {
+            const tx = {
+                objectStore(name) {
+                    if (name === 'profiles') return mockProfilesStore;
+                    return {
+                        get: () => ({ onsuccess: null }),
+                        put: () => ({ onsuccess: null }),
+                        add: () => ({ onsuccess: null }),
+                        index: () => ({ count: () => ({ onsuccess: null }) })
+                    };
+                },
+                oncomplete: null,
+                onerror: null,
+                onabort: null
+            };
+            queueMicrotask(() => {
+                if (typeof tx.oncomplete === 'function') tx.oncomplete();
+            });
+            return tx;
+        }
+    };
+
+    let openRequest;
     const sandbox = {
         MY_TWITCH_CHANNEL: 'testchannel',
         BOTS: ['nightbot'],
@@ -264,7 +316,16 @@ function setupTest(overrides = {}) {
                 };
             }
         },
-        indexedDB: { open: () => ({ onsuccess: null, onupgradeneeded: null }) },
+        indexedDB: {
+            open: () => {
+                openRequest = {
+                    result: mockDb,
+                    onsuccess: null,
+                    onupgradeneeded: null
+                };
+                return openRequest;
+            }
+        },
         IDBKeyRange: { lowerBound: (v) => v },
         setTimeout: (fn, ms) => setTimeout(fn, ms),
         clearTimeout: (id) => clearTimeout(id),
@@ -283,6 +344,9 @@ function setupTest(overrides = {}) {
 
     const context = vm.createContext(sandbox);
     vm.runInContext(scriptCode, context);
+    if (openRequest && typeof openRequest.onsuccess === 'function') {
+        openRequest.onsuccess({ target: openRequest });
+    }
 
     return {
         context,
@@ -290,6 +354,8 @@ function setupTest(overrides = {}) {
         showTwitchUser: context.showTwitchUser,
         applyProfileToVisibleCards: context.applyProfileToVisibleCards,
         fetchTwitchTrackerSummary: context.fetchTwitchTrackerSummary,
+        processVisibleProfiles: context.processVisibleProfiles,
+        profilesDb,
         setFetchHandler: (fn) => { fetchHandler = fn; }
     };
 }
@@ -485,6 +551,59 @@ test("fetchTwitchTrackerSummary fetches and returns parsed avg_viewers or null o
     assert.strictEqual(await fetchTwitchTrackerSummary(""), null, "returns null for empty username");
     assert.strictEqual(await fetchTwitchTrackerSummary(null), null, "returns null for null username");
     assert.strictEqual(await fetchTwitchTrackerSummary(undefined), null, "returns null for undefined username");
+});
+
+// ====================================================================
+// Test 6: Обновление устаревшего кэша (если в кэшированном профиле нет avgViewers)
+// ====================================================================
+test("processVisibleProfiles re-fetches TwitchTracker data when cached profile is missing avgViewers field", async () => {
+    let trackerFetchCount = 0;
+    const initialProfiles = {
+        fra3a: {
+            username: "fra3a",
+            fetchedAt: 1700000000000 - 1000, // свежий кэш (1 сек назад), но старый формат без avgViewers
+            data: {
+                login: "fra3a",
+                displayName: "FRA3A",
+                followers: 2533
+            }
+        }
+    };
+
+    const { showTwitchUser, processVisibleProfiles, setFetchHandler, viewersDiv } = setupTest({
+        initialProfiles,
+        fetch: async (url) => {
+            if (url.includes('twitchtracker.com/api/channels/summary/fra3a')) {
+                trackerFetchCount++;
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ avg_viewers: 94, followers_total: 2533 })
+                };
+            }
+            if (url.includes('api.ivr.fi')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ([{ login: "fra3a", displayName: "FRA3A", followers: 2533 }])
+                };
+            }
+            return { ok: true, json: async () => ({}) };
+        }
+    });
+
+    // Добавляем карточку пользователя в DOM
+    showTwitchUser("JOIN", "fra3a", "normal");
+
+    // Вызываем обработку видимых профилей
+    await processVisibleProfiles();
+
+    assert.strictEqual(trackerFetchCount, 1, "TwitchTracker was queried for legacy cached user missing avgViewers");
+
+    const line = viewersDiv.firstChild;
+    const avgViewersEl = line.querySelector('.average_viewers');
+    assert.ok(avgViewersEl, ".average_viewers element exists");
+    assert.match(avgViewersEl.innerHTML, /Зрителей:\s*<span class="count">94<\/span>/, "average_viewers is populated with 94");
 });
 
 async function run() {
