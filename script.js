@@ -173,7 +173,8 @@ function showTwitchUser(type, user_name, css_class) {
     const logDiv = document.getElementById('viewers');
     const line = document.createElement('div');
     line.classList.add('line', css_class, 'just-added');
-    line.dataset.username = user_name.toLowerCase();
+    const normalizedUsername = user_name.toLowerCase();
+    line.dataset.username = normalizedUsername;
     const time = new Date().toLocaleTimeString('ru-RU');
 
     let last_element = logDiv.firstChild;
@@ -184,7 +185,7 @@ function showTwitchUser(type, user_name, css_class) {
             <img hidden>
         </div>
         <div class="info">
-            <div class="nickname"></div>
+            <a class="nickname" href="https://twitch.tv/${encodeURIComponent(normalizedUsername)}" target="_blank" rel="noopener noreferrer"></a>
             <div class="followers"></div>
             <div class="bio"></div>
             <div class="datetime">[${time}]</div> 
@@ -192,8 +193,13 @@ function showTwitchUser(type, user_name, css_class) {
         </div>
     `;
 
-    line.querySelector('.nickname').textContent = user_name;
-    line.querySelector('.avatar img').alt = user_name;
+    const nicknameEl = line.querySelector('.nickname');
+    if (nicknameEl) {
+        nicknameEl.textContent = user_name;
+        nicknameEl.href = `https://twitch.tv/${encodeURIComponent(normalizedUsername)}`;
+    }
+    const avatarImg = line.querySelector('.avatar img');
+    if (avatarImg) avatarImg.alt = user_name;
 
     logDiv.prepend(line);
 
@@ -472,9 +478,15 @@ function applyProfileToVisibleCards(username, userData) {
         const followers = line.querySelector('.followers');
         const bio = line.querySelector('.bio');
 
-        nickname.textContent = userData.displayName || userData.login || username;
-        followers.textContent = userData.followers ?? '';
-        bio.textContent = userData.bio || '';
+        const rawLogin = (userData.login || username || '').toLowerCase();
+        if (nickname) {
+            nickname.textContent = userData.displayName || userData.login || username;
+            if (rawLogin) {
+                nickname.href = `https://twitch.tv/${encodeURIComponent(rawLogin)}`;
+            }
+        }
+        if (followers) followers.textContent = userData.followers ?? '';
+        if (bio) bio.textContent = userData.bio || '';
 
         if (userData.logo) {
             image.hidden = false;

@@ -133,6 +133,16 @@ body {
     /* border-top: 1px dashed #444; */
 }
 
+.nickname {
+    color: #00ff41;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.nickname:hover {
+    text-decoration: underline;
+}
+
 .line.new .nickname {
     color: #ff0055;
     text-shadow: 0 0 5px #ff0055;
