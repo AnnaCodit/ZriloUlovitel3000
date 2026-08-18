@@ -235,7 +235,10 @@ function showTwitchUser(type, user_name, css_class) {
         </div>
         <div class="info">
             <a class="nickname" href="https://twitch.tv/${encodeURIComponent(normalizedUsername)}" target="_blank" rel="noopener noreferrer"></a>
-            <div class="followers"></div>
+            <div class="stats">
+                <div class="followers"></div>
+                <div class="average_viewers"></div>
+            </div>
             <div class="bio"></div>
             <div class="datetime">[${time}]</div> 
             <div class="type">[${type}]</div> 
@@ -500,7 +503,25 @@ async function processVisibleProfiles() {
 
                 if (batch.length === 0) continue;
 
-                const profiles = await getTwitchUsersData(batch);
+                const [profiles, trackerResults] = await Promise.all([
+                    getTwitchUsersData(batch).catch((err) => {
+                        console.error("Ошибка IVR:", err);
+                        return new Map();
+                    }),
+                    Promise.all(batch.map((username) => fetchTwitchTrackerSummary(username)))
+                ]);
+
+                batch.forEach((username, idx) => {
+                    const avgViewers = trackerResults[idx];
+                    let profile = profiles.get(username);
+                    if (profile) {
+                        profile.avgViewers = avgViewers;
+                    } else if (avgViewers !== null && avgViewers !== undefined) {
+                        profile = { login: username, avgViewers };
+                        profiles.set(username, profile);
+                    }
+                });
+
                 await cacheProfileBatch(batch, profiles);
                 profiles.forEach((profile, username) => {
                     applyProfileToVisibleCards(username, profile);
@@ -512,6 +533,30 @@ async function processVisibleProfiles() {
     } finally {
         profileQueueRunning = false;
         if (profileRefreshRequested) processVisibleProfiles();
+    }
+}
+
+async function fetchTwitchTrackerSummary(username) {
+    if (!username || typeof username !== 'string') return null;
+    const cleanUser = username.trim().toLowerCase();
+    if (!cleanUser) return null;
+
+    const url = `https://twitchtracker.com/api/channels/summary/${encodeURIComponent(cleanUser)}`;
+    let timeout;
+    try {
+        const controller = new AbortController();
+        timeout = setTimeout(() => controller.abort(), 7000);
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data && typeof data.avg_viewers === 'number' && Number.isFinite(data.avg_viewers) && data.avg_viewers > 0) {
+            return Math.round(data.avg_viewers);
+        }
+        return null;
+    } catch (err) {
+        return null;
+    } finally {
+        clearTimeout(timeout);
     }
 }
 
@@ -607,6 +652,7 @@ function applyProfileToVisibleCards(username, userData) {
         const image = line.querySelector('.avatar img');
         const nickname = line.querySelector('.nickname');
         const followers = line.querySelector('.followers');
+        const avgViewersEl = line.querySelector('.average_viewers');
         const bio = line.querySelector('.bio');
 
         const rawLogin = (userData.login || username || '').toLowerCase();
@@ -616,7 +662,25 @@ function applyProfileToVisibleCards(username, userData) {
                 nickname.href = `https://twitch.tv/${encodeURIComponent(rawLogin)}`;
             }
         }
-        if (followers) followers.textContent = userData.followers ?? '';
+
+        if (followers) {
+            if (userData.followers !== undefined && userData.followers !== null && Number.isFinite(Number(userData.followers))) {
+                const formattedFollowers = Number(userData.followers).toLocaleString('ru-RU');
+                followers.innerHTML = `Фоловеров: <span class="count">${formattedFollowers}</span>`;
+            } else {
+                followers.innerHTML = '';
+            }
+        }
+
+        if (avgViewersEl) {
+            if (userData.avgViewers !== undefined && userData.avgViewers !== null && Number.isFinite(Number(userData.avgViewers)) && Number(userData.avgViewers) > 0) {
+                const formattedAvg = Number(userData.avgViewers).toLocaleString('ru-RU');
+                avgViewersEl.innerHTML = `Зрителей: <span class="count">${formattedAvg}</span>`;
+            } else {
+                avgViewersEl.innerHTML = '';
+            }
+        }
+
         if (bio) bio.textContent = userData.bio || '';
 
         if (userData.logo) {

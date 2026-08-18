@@ -128,9 +128,24 @@ body {
 
 }
 
-.line .followers {
-    font-size: 20px;
-    color: #666;
+.line .stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 15px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.line .stats .followers,
+.line .stats .average_viewers {
+    font-size: 16px;
+    color: #888;
+}
+
+.line .stats .count {
+    font-weight: bold;
+    color: #00ff41;
 }
 
 .line.separated {
