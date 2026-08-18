@@ -192,7 +192,10 @@ function createTestEnvironment(options = {}) {
             Client: function () {
                 return {
                     connect: () => Promise.resolve(),
-                    on: () => {}
+                    on: () => {},
+                    join: () => Promise.resolve(),
+                    part: () => Promise.resolve(),
+                    disconnect: () => Promise.resolve()
                 };
             }
         },
@@ -457,6 +460,41 @@ test("Test 7: UI чекбокс onlyNewViewers корректно обновля
 
     // Так как onlyNewViewers = true, обычный зритель скрыт
     assert.strictEqual(env.shownFeedEvents.length, 0);
+});
+
+// ==========================================
+// TEST 8: Связывание UI инпута twitchChannel и localStorage
+// ==========================================
+test("Test 8: UI инпут twitchChannel сохраняет канал в localStorage и читается при старте", () => {
+    // 8.1 Чтение и запись строковых настроек
+    const env1 = createTestEnvironment({ channel: 'default_streamer' });
+    const ctx = env1.ctx;
+
+    assert.strictEqual(ctx.readStringSetting("nonexistent_str", "fallback"), "fallback");
+    ctx.writeStringSetting("custom_channel", "streamer123");
+    assert.strictEqual(ctx.readStringSetting("custom_channel", "fallback"), "streamer123");
+
+    // 8.2 Fallback на MY_TWITCH_CHANNEL при отсутствии сохраненного значения
+    assert.strictEqual(ctx.getTwitchChannel(), "default_streamer");
+
+    // 8.3 Чтение из localStorage если задано
+    const env2 = createTestEnvironment({
+        channel: 'default_streamer',
+        localStorage: {
+            twitchChannel: 'saved_streamer'
+        }
+    });
+    assert.strictEqual(env2.ctx.getTwitchChannel(), "saved_streamer");
+
+    // 8.4 Изменение значения через UI инпут
+    const channelInput = env2.getMockElement("twitchChannel");
+    assert.strictEqual(channelInput.value, "saved_streamer");
+
+    channelInput.value = "#NewStreamerChannel ";
+    channelInput.dispatchEvent("change");
+
+    assert.strictEqual(env2.localStorage.getItem("twitchChannel"), "newstreamerchannel", "Нормализованный канал сохранен в localStorage");
+    assert.strictEqual(env2.ctx.getTwitchChannel(), "newstreamerchannel");
 });
 
 // --- RUNNER ---

@@ -26,6 +26,15 @@ function createSimpleDomNode(tagName = 'div') {
         target: '',
         rel: '',
         hidden: false,
+        listeners: new Map(),
+        addEventListener(event, fn) {
+            if (!this.listeners.has(event)) this.listeners.set(event, []);
+            this.listeners.get(event).push(fn);
+        },
+        dispatchEvent(event) {
+            const list = this.listeners.get(event) || [];
+            list.forEach(fn => fn({ target: this }));
+        },
         setAttribute(k, v) {
             this.attributes[k] = String(v);
             if (k === 'href') this.href = v;
@@ -36,14 +45,21 @@ function createSimpleDomNode(tagName = 'div') {
         getAttribute(k) { return this.attributes[k] || null; },
         prepend(child) {
             this.children.unshift(child);
+            child.parentNode = this;
             this.firstChild = this.children[0];
             this.lastChild = this.children[this.children.length - 1];
         },
         removeChild(child) {
             const idx = this.children.indexOf(child);
             if (idx !== -1) this.children.splice(idx, 1);
+            child.parentNode = null;
             this.firstChild = this.children[0] || null;
             this.lastChild = this.children[this.children.length - 1] || null;
+        },
+        remove() {
+            if (this.parentNode) {
+                this.parentNode.removeChild(this);
+            }
         },
         querySelector(selector) {
             return querySelectorInternal(this, selector);
@@ -113,6 +129,7 @@ function parseHtmlFragment(html, parent) {
             }
 
             const currentParent = stack[stack.length - 1];
+            elem.parentNode = currentParent;
             currentParent.children.push(elem);
 
             if (!isSelfClosing) {
@@ -144,6 +161,8 @@ function querySelectorAllInternal(node, selector, results) {
             if (child.classList.contains('avatar')) matches = true;
         } else if (selector === '.avatar img') {
             if (child.tagName === 'IMG' && node.classList && node.classList.contains('avatar')) matches = true;
+        } else if (selector === '.timer-bar') {
+            if (child.classList.contains('timer-bar')) matches = true;
         } else if (selector.includes('[data-username]')) {
             if (child.dataset && child.dataset.username) matches = true;
         } else if (child.tagName === selector.toUpperCase()) {
@@ -155,7 +174,7 @@ function querySelectorAllInternal(node, selector, results) {
     }
 }
 
-function setupTest() {
+function setupTest(overrides = {}) {
     const scriptPath = path.join(__dirname, '../script.js');
     const scriptCode = fs.readFileSync(scriptPath, 'utf-8');
 
@@ -193,6 +212,7 @@ function setupTest() {
         BOTS: ['nightbot'],
         COOL_USERS: ['vip_user'],
         MAX_LOG_LINES: 10,
+        RECENT_VIEWER_DURATION_SEC: overrides.recentViewerDuration,
         localStorage: {
             getItem: () => null,
             setItem: () => {}
@@ -202,7 +222,17 @@ function setupTest() {
             toLocaleTimeString() { return '12:00:00'; }
             static now() { return 1700000000000; }
         },
-        tmi: { Client: function () { return { connect: () => Promise.resolve(), on: () => {} }; } },
+        tmi: {
+            Client: function () {
+                return {
+                    connect: () => Promise.resolve(),
+                    on: () => {},
+                    join: () => Promise.resolve(),
+                    part: () => Promise.resolve(),
+                    disconnect: () => Promise.resolve()
+                };
+            }
+        },
         indexedDB: { open: () => ({ onsuccess: null, onupgradeneeded: null }) },
         IDBKeyRange: { lowerBound: (v) => v },
         setTimeout: () => 1,
@@ -219,7 +249,8 @@ function setupTest() {
         context,
         viewersDiv,
         showTwitchUser: context.showTwitchUser,
-        applyProfileToVisibleCards: context.applyProfileToVisibleCards
+        applyProfileToVisibleCards: context.applyProfileToVisibleCards,
+        getRecentViewerDuration: context.getRecentViewerDuration
     };
 }
 
@@ -309,9 +340,53 @@ test("applyProfileToVisibleCards falls back cleanly if displayName is missing", 
     assert.strictEqual(nickname.href, "https://twitch.tv/simpleuser");
 });
 
+// Test 5: Горизонтальная полоска .timer-bar с длительностью из конфига
+test("showTwitchUser creates .timer-bar with duration from RECENT_VIEWER_DURATION_SEC (default 60s)", () => {
+    const { showTwitchUser, viewersDiv } = setupTest();
+
+    showTwitchUser("JOIN", "speedy", "normal");
+
+    const line = viewersDiv.firstChild;
+    const timerBar = line.querySelector('.timer-bar');
+    assert.ok(timerBar, ".timer-bar element exists inside .line");
+    assert.strictEqual(timerBar.style.animationDuration, "60s", "default animation-duration is 60s");
+});
+
+// Test 6: Кастомная длительность таймера из конфига
+test("showTwitchUser respects custom RECENT_VIEWER_DURATION_SEC from config", () => {
+    const { showTwitchUser, viewersDiv } = setupTest({ recentViewerDuration: 45 });
+
+    showTwitchUser("JOIN", "customtimer", "normal");
+
+    const line = viewersDiv.firstChild;
+    const timerBar = line.querySelector('.timer-bar');
+    assert.ok(timerBar, ".timer-bar element exists");
+    assert.strictEqual(timerBar.style.animationDuration, "45s", "animation-duration matches config 45s");
+});
+
+// Test 7: Окончание анимации удаляет .timer-bar и снимает класс just-added
+test("animationend event removes .timer-bar and removes just-added class from .line", () => {
+    const { showTwitchUser, viewersDiv } = setupTest();
+
+    showTwitchUser("ALERT", "brandnew", "new");
+
+    const line = viewersDiv.firstChild;
+    assert.strictEqual(line.classList.contains('just-added'), true);
+
+    const timerBar = line.querySelector('.timer-bar');
+    assert.ok(timerBar);
+
+    // Триггерим окончание анимации
+    timerBar.dispatchEvent('animationend');
+
+    // Проверяем что полоска удалена из DOM
+    assert.strictEqual(line.querySelector('.timer-bar'), null, ".timer-bar is removed after animationend");
+    assert.strictEqual(line.classList.contains('just-added'), false, "just-added class is removed after animationend");
+});
+
 async function run() {
     console.log("==================================================");
-    console.log("  Running ZriloUlovitel3000 Twitch Link Tests");
+    console.log("  Running ZriloUlovitel3000 Twitch Link & Timer Tests");
     console.log("==================================================\n");
 
     let passed = 0;
