@@ -156,10 +156,22 @@ body {
     color: #00ff41;
     text-decoration: none;
     font-weight: bold;
+    font-size: 24px;
 }
 
 .nickname:hover {
     text-decoration: underline;
+}
+
+.channel {
+    font-size: 18px;
+    margin-top: 15px;
+    color: #888;
+}
+
+.channel #channel {
+    color: #00ff41;
+    font-weight: bold;
 }
 
 .line.new .nickname {

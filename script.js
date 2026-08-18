@@ -671,7 +671,7 @@ function applyProfileToVisibleCards(username, userData) {
 
         if (followers) {
             if (userData.followers !== undefined && userData.followers !== null && Number.isFinite(Number(userData.followers))) {
-                const formattedFollowers = Number(userData.followers).toLocaleString('ru-RU');
+                const formattedFollowers = String(userData.followers);
                 followers.innerHTML = `Фоловеров: <span class="count">${formattedFollowers}</span>`;
             } else {
                 followers.innerHTML = '';
@@ -680,7 +680,7 @@ function applyProfileToVisibleCards(username, userData) {
 
         if (avgViewersEl) {
             if (userData.avgViewers !== undefined && userData.avgViewers !== null && Number.isFinite(Number(userData.avgViewers)) && Number(userData.avgViewers) > 0) {
-                const formattedAvg = Number(userData.avgViewers).toLocaleString('ru-RU');
+                const formattedAvg = String(userData.avgViewers);
                 avgViewersEl.innerHTML = `Зрителей: <span class="count">${formattedAvg}</span>`;
             } else {
                 avgViewersEl.innerHTML = '';

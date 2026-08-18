@@ -413,8 +413,8 @@ test("applyProfileToVisibleCards formats .followers as 'Фоловеров: <spa
 
     const countSpan = followers.querySelector('.count');
     assert.ok(countSpan, ".count span exists inside .followers");
-    assert.strictEqual(countSpan.textContent.replace(/\s+/g, ''), "12345", ".count span contains followers count");
-    assert.match(followers.innerHTML, /^Фоловеров:\s*<span class="count">12\s*345<\/span>|^Фоловеров:\s*<span class="count">12345<\/span>/, "followers innerHTML has correct markup format");
+    assert.strictEqual(countSpan.textContent, "12345", ".count span contains followers count without spaces");
+    assert.strictEqual(followers.innerHTML, 'Фоловеров: <span class="count">12345</span>', "followers innerHTML has correct markup format without spaces");
 
     // Проверка 0 подписчиков
     applyProfileToVisibleCards("streamer_dan", { ...userData, followers: 0 });
