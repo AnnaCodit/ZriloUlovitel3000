@@ -255,7 +255,7 @@ function showTwitchUser(type, user_name, css_class) {
                 <div class="average_viewers"></div>
             </div>
             <div class="bio"></div>
-            <div class="datetime">[${time}]</div> 
+            <div class="datetime">${time}</div> 
             <div class="type">[${type}]</div> 
         </div>
         <div class="timer-bar"></div>
