@@ -375,17 +375,21 @@ test("Test 4: Повторный заход при onlyNewViewers = true для 
 // ==========================================
 test("Test 5: Боты из списка BOTS -> игнорируются, не добавляются в базу и не выводятся", async () => {
     const env = createTestEnvironment({
-        bots: ["streamelements", "nightbot", "fossabot"]
+        bots: ["streamelements", "NightBot", "FrostyTools", "twirapp"]
     });
 
     const initialTxCount = env.getTransactionCount();
 
-    await env.checkViewer("nightbot");
+    await env.checkViewer("nightbot"); // lowercase check against mixed-case list
     await env.checkViewer("streamelements");
+    await env.checkViewer("frostytools");
+    await env.checkViewer("TwirApp"); // mixed-case check against lowercase list
 
     // База не должна содержать ботов
     assert.strictEqual(env.viewersDb.has("nightbot"), false);
     assert.strictEqual(env.viewersDb.has("streamelements"), false);
+    assert.strictEqual(env.viewersDb.has("frostytools"), false);
+    assert.strictEqual(env.viewersDb.has("twirapp"), false);
 
     // Никаких событий в ленте
     assert.strictEqual(env.shownFeedEvents.length, 0);
