@@ -12,15 +12,9 @@ body {
 .logo {
     font-size: 24px;
     border-bottom: 2px solid #00ff41;
-    display: inline-block;
-    padding-bottom: 5px;
     display: inline-flex;
     align-items: center;
-    /* background-color: #222; */
     padding: 5px 0px 8px;
-    /* padding: 5px 15px 8px; */
-    margin-bottom: 10px;
-    /* border-radius: 10px; */
 }
 
 .panel {
@@ -29,24 +23,78 @@ body {
     align-items: center;
     gap: 20px;
     flex-wrap: wrap;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.new-viewers {
+    font-size: 16px;
+    color: #888;
+}
+
+.new-viewers #new-viewers {
+    color: #00ff41;
+    font-weight: bold;
+}
+
+.settings-toggle-btn {
+    background: #111;
+    border: 1px solid #333;
+    color: #00ff41;
+    font-size: 20px;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.2s ease;
+    user-select: none;
+    line-height: 1;
+}
+
+.settings-toggle-btn:hover {
+    background: #222;
+    border-color: #00ff41;
+    transform: rotate(30deg);
+}
+
+.settings-toggle-btn:active {
+    background: #003311;
 }
 
 .panel-actions {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    display: none;
+    margin-bottom: 20px;
+}
+
+.panel-actions.is-open {
+    display: block;
 }
 
 .settings {
-    min-width: 260px;
-    border: 1px solid #333;
+    max-width: 400px;
+    border: 1px solid #00ff41;
     background: #0a0a0a;
-    padding: 5px 10px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 255, 65, 0.15);
 }
 
-.settings summary {
-    cursor: pointer;
+.settings-title {
     color: #00ffff;
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #222;
+    padding-bottom: 6px;
     user-select: none;
 }
 
@@ -57,6 +105,7 @@ body {
     gap: 12px;
     margin-top: 8px;
     color: #999;
+    font-size: 14px;
 }
 
 .settings input {
@@ -67,6 +116,7 @@ body {
     color: #00ff41;
     font: inherit;
     padding: 3px 5px;
+    border-radius: 3px;
 }
 
 .settings input[type="text"] {
@@ -98,6 +148,7 @@ body {
     font: inherit;
     font-weight: bold;
     box-sizing: border-box;
+    border-radius: 4px;
     transition: background-color 0.15s ease;
 }
 
@@ -107,21 +158,6 @@ body {
 
 .save-settings-button:active {
     background-color: #007733;
-}
-
-.clear-db-button {
-    background-color: #333;
-    color: red;
-    border: 1px solid red;
-    padding: 5px 10px;
-}
-
-#log {
-    margin-top: 20px;
-    border: 1px dashed #333;
-    padding: 10px;
-    background: #000;
-    margin-bottom: 10px;
 }
 
 .line {
@@ -186,15 +222,55 @@ body {
     text-decoration: underline;
 }
 
+.footer {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px dashed #222;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .channel {
-    font-size: 18px;
-    margin-top: 15px;
+    font-size: 16px;
     color: #888;
 }
 
 .channel #channel {
     color: #00ff41;
     font-weight: bold;
+}
+
+.status-block {
+    font-size: 16px;
+    color: #888;
+}
+
+.status-block #status {
+    font-weight: bold;
+}
+
+.clear-db-button {
+    background-color: #1a0000;
+    color: #ff4444;
+    border: 1px solid #ff4444;
+    padding: 6px 14px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    border-radius: 4px;
+    margin-top: 6px;
+    align-self: flex-start;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.clear-db-button:hover {
+    background-color: #440000;
+    color: #ff6666;
+}
+
+.clear-db-button:active {
+    background-color: #660000;
 }
 
 .line.new .nickname {

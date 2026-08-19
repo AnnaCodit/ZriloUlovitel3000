@@ -125,11 +125,15 @@ function createTestEnvironment(options = {}) {
                 textContent: "",
                 style: {},
                 dataset: {},
-                classList: {
-                    add: () => {},
-                    remove: () => {},
-                    contains: () => false
-                },
+                classList: (() => {
+                    const classes = new Set();
+                    return {
+                        add: (...cls) => cls.forEach((c) => classes.add(c)),
+                        remove: (...cls) => cls.forEach((c) => classes.delete(c)),
+                        toggle: (c) => (classes.has(c) ? classes.delete(c) : classes.add(c)),
+                        contains: (c) => classes.has(c)
+                    };
+                })(),
                 children: [],
                 addEventListener(event, fn) {
                     if (!listeners.has(event)) listeners.set(event, []);
@@ -534,6 +538,24 @@ test("Test 9: Кнопка 'Сохранить' сохраняет все пар
     assert.strictEqual(env.localStorage.getItem("viewerFeedLimit"), "75", "feedLimit сохранен");
     assert.strictEqual(env.localStorage.getItem("viewerAvatarSize"), "200", "avatarSize сохранен");
     assert.strictEqual(env.getReloadCount(), 1, "Перезагрузка страницы была вызвана 1 раз");
+});
+
+// ==========================================
+// TEST 10: Кнопка ⚙️ переключает отображение .panel-actions
+// ==========================================
+test("Test 10: Кнопка ⚙️ (settingsToggleBtn) переключает класс is-open у .panel-actions", () => {
+    const env = createTestEnvironment();
+
+    const toggleBtn = env.getMockElement("settingsToggleBtn");
+    const panelActions = env.ctx.document.querySelector('.panel-actions');
+
+    assert.strictEqual(panelActions.classList.contains('is-open'), false, "По умолчанию .panel-actions скрыт (нет класса is-open)");
+
+    toggleBtn.dispatchEvent("click");
+    assert.strictEqual(panelActions.classList.contains('is-open'), true, "После первого клика появляется класс is-open");
+
+    toggleBtn.dispatchEvent("click");
+    assert.strictEqual(panelActions.classList.contains('is-open'), false, "После второго клика класс is-open снимается");
 });
 
 // --- RUNNER ---

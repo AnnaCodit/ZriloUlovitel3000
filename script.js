@@ -68,8 +68,6 @@ request.onupgradeneeded = (e) => {
 
 request.onsuccess = (e) => {
     db = e.target.result;
-    logToScreen("IndexedDB connected.", "system");
-    // console.log("IndexedDB connected.");
 
     initializeViewerSettings();
     startTwitchListener(); // Запускаем TMI только когда база готова
@@ -77,15 +75,18 @@ request.onsuccess = (e) => {
     updateNewViewersCount();
     setInterval(updateNewViewersCount, 60000);
 
-    document.getElementById('clearBtn').addEventListener('click', () => {
-        const stores = ["viewers", PROFILE_STORE_NAME];
-        const tx = db.transaction(stores, "readwrite");
-        stores.forEach((storeName) => tx.objectStore(storeName).clear());
-        tx.oncomplete = () => {
-            logToScreen("Viewers database cleared.", "system");
-            updateNewViewersCount();
-        };
-    });
+    const clearBtn = document.getElementById('clearBtn');
+    if (clearBtn && !clearBtn._hasClearListener) {
+        clearBtn._hasClearListener = true;
+        clearBtn.addEventListener('click', () => {
+            const stores = ["viewers", PROFILE_STORE_NAME];
+            const tx = db.transaction(stores, "readwrite");
+            stores.forEach((storeName) => tx.objectStore(storeName).clear());
+            tx.oncomplete = () => {
+                updateNewViewersCount();
+            };
+        });
+    }
 };
 
 // --- ФУНКЦИЯ ПРОВЕРКИ ---
@@ -162,7 +163,6 @@ function startTwitchListener() {
             statusEl.innerText = 'Укажите канал в настройках';
             statusEl.style.color = 'orange';
         }
-        logToScreen("Укажите канал в блоке настроек", "system");
         return;
     }
 
@@ -192,7 +192,6 @@ function startTwitchListener() {
             statusEl.innerText = 'Online & Scanning';
             statusEl.style.color = '#00ff41';
         }
-        logToScreen(`Connected to ${address}:${port} (${currentTwitchChannel})`, "system");
     });
 
     // Событие JOIN (Кто-то зашел)
@@ -206,29 +205,6 @@ function startTwitchListener() {
         // tags['username'] - это ник пишущего
         // checkViewer(tags['username'], 'message');
     });
-}
-
-
-
-// --- ВЫВОД НА ЭКРАН ---
-function logToScreen(text, type) {
-    const logDiv = document.getElementById('log');
-    const line = document.createElement('div');
-    line.classList.add('line');
-    const time = new Date().toLocaleTimeString('ru-RU');
-
-    line.innerHTML = `
-        <div class="datetime">[${time}]</div> 
-        <div class="type">[${type}]</div> 
-        <div class="text">${text}</div> 
-    `;
-
-    logDiv.prepend(line);
-
-    // удаляем старые записи
-    while (logDiv.children.length > MAX_LOG_LINES) {
-        logDiv.removeChild(logDiv.lastChild);
-    }
 }
 
 // --- ВЫВОД НА ЭКРАН ---
@@ -334,10 +310,8 @@ function initializeViewerSettings() {
                             statusEl.innerText = 'Online & Scanning';
                             statusEl.style.color = '#00ff41';
                         }
-                        logToScreen(`Переключено на канал: ${currentTwitchChannel}`, "system");
                     }).catch((err) => {
                         console.error("Ошибка переключения канала:", err);
-                        logToScreen(`Ошибка переключения на канал: ${currentTwitchChannel}`, "system");
                     });
                 }
             } else {
@@ -349,7 +323,6 @@ function initializeViewerSettings() {
                     statusEl.innerText = 'Укажите канал в настройках';
                     statusEl.style.color = 'orange';
                 }
-                logToScreen("Канал отключен. Укажите новый канал в настройках", "system");
             }
         });
     }
@@ -417,6 +390,19 @@ function initializeViewerSettings() {
                 writeNumberSetting(AVATAR_SIZE_KEY, size);
             }
             reloadPage();
+        });
+    }
+
+    initSettingsToggle();
+}
+
+function initSettingsToggle() {
+    const toggleBtn = document.getElementById('settingsToggleBtn');
+    const panelActions = document.querySelector('.panel-actions');
+    if (toggleBtn && panelActions && !toggleBtn._hasToggleListener) {
+        toggleBtn._hasToggleListener = true;
+        toggleBtn.addEventListener('click', () => {
+            panelActions.classList.toggle('is-open');
         });
     }
 }

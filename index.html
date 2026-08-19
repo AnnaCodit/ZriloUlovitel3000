@@ -25,37 +25,41 @@
 </head>
 
 <body>
-    <div class="logo">🤖 Зрилоуловитель 3000</div>
     <div class="panel">
-        <div class="info">
-            <div>Status: <span id="status" style="color:orange">Connecting...</span></div>
+        <div class="logo">🤖 Зрилоуловитель 3000</div>
+        <div class="header-right">
             <div class="new-viewers">Новеньких за 24 часа: <span id="new-viewers"></span></div>
+            <button id="settingsToggleBtn" class="settings-toggle-btn" type="button" title="Настройки" aria-label="Настройки">⚙️</button>
         </div>
-        <div class="panel-actions">
-            <details class="settings">
-                <summary>Настройки</summary>
-                <label> Канал <input id="twitchChannel" type="text" placeholder="название канала" autocomplete="off"
-                        spellcheck="false">
-                </label>
-                <label> Показывать только новых <input id="onlyNewViewers" type="checkbox">
-                </label>
-                <label> Ников в ленте <input id="viewerFeedLimit" type="number" min="1" max="500" step="1">
-                </label>
-                <label>
-                    Размер аватарки
-                    <span class="input-with-unit">
-                        <input id="avatarSize" type="number" min="32" max="300" step="1">
-                        <span>px</span>
-                    </span>
-                </label>
-                <button id="saveSettingsBtn" class="save-settings-button">Сохранить</button>
-            </details>
-            <button id="clearBtn" class="clear-db-button">Clear Viewers DB</button>
+    </div>
+    <div id="panelActions" class="panel-actions">
+        <div class="settings">
+            <div class="settings-title">⚙️ Настройки</div>
+            <label> Канал <input id="twitchChannel" type="text" placeholder="название канала" autocomplete="off"
+                    spellcheck="false">
+            </label>
+            <label> Показывать только новых <input id="onlyNewViewers" type="checkbox">
+            </label>
+            <label> Ников в ленте <input id="viewerFeedLimit" type="number" min="1" max="500" step="1">
+            </label>
+            <label>
+                Размер аватарки
+                <span class="input-with-unit">
+                    <input id="avatarSize" type="number" min="32" max="300" step="1">
+                    <span>px</span>
+                </span>
+            </label>
+            <button id="saveSettingsBtn" class="save-settings-button">Сохранить</button>
         </div>
     </div>
     <div id="viewers"></div>
-    <div id="log"></div>
-    <div class="channel">Канал: <span id="channel"></span></div>
+    <div class="footer">
+        <div class="channel">Канал: <span id="channel"></span></div>
+        <div class="status-block">Status: <span id="status" style="color:orange">Connecting...</span></div>
+        <div class="footer-actions">
+            <button id="clearBtn" class="clear-db-button">Clear Viewers DB</button>
+        </div>
+    </div>
     <!-- Динамическое подключение локальных скриптов с cache-busting -->
     <script>
         (function () {
