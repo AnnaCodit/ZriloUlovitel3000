@@ -71,6 +71,30 @@ function createSimpleDomNode(tagName = 'div') {
         }
     };
 
+    let directText = '';
+    Object.defineProperty(node, '_directText', {
+        get() { return directText; },
+        set(v) { directText = String(v); }
+    });
+    Object.defineProperty(node, 'textContent', {
+        get() {
+            let res = directText;
+            for (const child of this.children) {
+                const childText = child.textContent;
+                if (childText) {
+                    res += (res && !res.endsWith(' ') ? ' ' : '') + childText;
+                }
+            }
+            return res;
+        },
+        set(val) {
+            directText = String(val);
+            this.children = [];
+            this.firstChild = null;
+            this.lastChild = null;
+        }
+    });
+
     let innerHTMLValue = '';
     Object.defineProperty(node, 'innerHTML', {
         get() { return innerHTMLValue; },
@@ -138,7 +162,7 @@ function parseHtmlFragment(html, parent) {
             }
         } else {
             const currentParent = stack[stack.length - 1];
-            currentParent.textContent = (currentParent.textContent || '') + trimmed;
+            currentParent._directText = (currentParent._directText || '') + trimmed;
         }
     }
 }
@@ -366,9 +390,9 @@ function test(name, fn) {
 }
 
 // ====================================================================
-// Test 1: DOM разметка карточки зрителя (.stats, .followers, .average_viewers)
+// Test 1: DOM разметка карточки зрителя (.stats, .followers, .average_viewers, .created_at, .last_stream)
 // ====================================================================
-test("showTwitchUser renders .stats container containing .followers and .average_viewers elements", () => {
+test("showTwitchUser renders .stats container containing .followers, .average_viewers, and .created_at, plus .last_stream in .info", () => {
     const { showTwitchUser, viewersDiv } = setupTest();
 
     showTwitchUser("JOIN", "Streamer123", "normal");
@@ -387,8 +411,17 @@ test("showTwitchUser renders .stats container containing .followers and .average
     assert.ok(avgViewers, ".average_viewers element exists");
     assert.strictEqual(avgViewers.parentNode, stats, ".average_viewers is a direct child of .stats");
 
+    const createdAt = line.querySelector('.created_at');
+    assert.ok(createdAt, ".created_at element exists");
+    assert.strictEqual(createdAt.parentNode, stats, ".created_at is a direct child of .stats");
+
+    const lastStream = line.querySelector('.last_stream');
+    assert.ok(lastStream, ".last_stream element exists inside .info");
+
     assert.strictEqual(followers.textContent, "", "initial .followers is empty before profile load");
     assert.strictEqual(avgViewers.textContent, "", "initial .average_viewers is empty before profile load");
+    assert.strictEqual(createdAt.textContent, "", "initial .created_at is empty before profile load");
+    assert.strictEqual(lastStream.textContent, "", "initial .last_stream is empty before profile load");
 });
 
 // ====================================================================
@@ -604,6 +637,134 @@ test("processVisibleProfiles re-fetches TwitchTracker data when cached profile i
     const avgViewersEl = line.querySelector('.average_viewers');
     assert.ok(avgViewersEl, ".average_viewers element exists");
     assert.match(avgViewersEl.innerHTML, /Зрителей:\s*<span class="count">94<\/span>/, "average_viewers is populated with 94");
+});
+
+// ====================================================================
+// Test 7: Форматирование даты создания аккаунта (Создан: <span class="count">YYYY.MM.DD</span>)
+// ====================================================================
+test("applyProfileToVisibleCards formats .created_at as 'Создан: <span class=\"count\">YYYY.MM.DD</span>'", () => {
+    const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
+
+    showTwitchUser("JOIN", "streamer_dan", "normal");
+
+    const userData = {
+        login: "streamer_dan",
+        displayName: "StreamerDan",
+        createdAt: "2025-01-27T00:58:54.950382Z"
+    };
+
+    applyProfileToVisibleCards("streamer_dan", userData);
+
+    const line = viewersDiv.firstChild;
+    const createdAt = line.querySelector('.created_at');
+    assert.ok(createdAt, ".created_at element exists");
+
+    const countSpan = createdAt.querySelector('.count');
+    assert.ok(countSpan, ".count span exists inside .created_at");
+    assert.strictEqual(countSpan.textContent, "2025.01.27", ".count span contains formatted date YYYY.MM.DD");
+    assert.strictEqual(createdAt.innerHTML, 'Создан: <span class="count">2025.01.27</span>', "created_at innerHTML has correct markup format");
+});
+
+// ====================================================================
+// Test 8: Очистка / пропуск .created_at при отсутствии или невалидном createdAt
+// ====================================================================
+test("applyProfileToVisibleCards leaves .created_at empty when createdAt is missing, null, or invalid", () => {
+    const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
+
+    showTwitchUser("JOIN", "casual_viewer", "normal");
+
+    // 8.1 createdAt = null
+    applyProfileToVisibleCards("casual_viewer", {
+        login: "casual_viewer",
+        createdAt: null
+    });
+    const line = viewersDiv.firstChild;
+    const createdAt = line.querySelector('.created_at');
+    assert.ok(createdAt, ".created_at element exists");
+    assert.strictEqual(createdAt.innerHTML.trim(), "", ".created_at is empty string when createdAt is null");
+
+    // 8.2 createdAt = undefined / omitted
+    applyProfileToVisibleCards("casual_viewer", {
+        login: "casual_viewer"
+    });
+    assert.strictEqual(createdAt.innerHTML.trim(), "", ".created_at is empty string when createdAt is omitted");
+
+    // 8.3 createdAt = invalid date string
+    applyProfileToVisibleCards("casual_viewer", {
+        login: "casual_viewer",
+        createdAt: "invalid-date"
+    });
+    assert.strictEqual(createdAt.innerHTML.trim(), "", ".created_at is empty string when createdAt is invalid");
+});
+
+// ====================================================================
+// Test 9: Форматирование названия последнего стрима (Стрим: <span class="title">...</span>)
+// ====================================================================
+test("applyProfileToVisibleCards formats .last_stream as 'Стрим: <span class=\"title\">...</span>' when lastBroadcast.title is present", () => {
+    const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
+
+    showTwitchUser("JOIN", "streamer_dan", "normal");
+
+    const streamTitle = "ПРО ВИТУБЕРОВ 😱 ПОБУХТИМ💬";
+    const userData = {
+        login: "streamer_dan",
+        displayName: "StreamerDan",
+        lastBroadcast: {
+            startedAt: "2026-08-19T18:19:35.282411Z",
+            title: streamTitle
+        }
+    };
+
+    applyProfileToVisibleCards("streamer_dan", userData);
+
+    const line = viewersDiv.firstChild;
+    const lastStream = line.querySelector('.last_stream');
+    assert.ok(lastStream, ".last_stream element exists");
+
+    const titleSpan = lastStream.querySelector('.title');
+    assert.ok(titleSpan, ".title span exists inside .last_stream");
+    assert.strictEqual(titleSpan.textContent, streamTitle, ".title span contains broadcast title");
+    assert.strictEqual(lastStream.textContent.trim(), `Стрим: ${streamTitle}`, "last_stream textContent is properly structured");
+});
+
+// ====================================================================
+// Test 10: Очистка / пропуск .last_stream при отсутствии lastBroadcast или title
+// ====================================================================
+test("applyProfileToVisibleCards leaves .last_stream empty when lastBroadcast or title is missing / empty", () => {
+    const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
+
+    showTwitchUser("JOIN", "casual_viewer", "normal");
+
+    const line = viewersDiv.firstChild;
+    const lastStream = line.querySelector('.last_stream');
+    assert.ok(lastStream, ".last_stream element exists");
+
+    // 10.1 lastBroadcast = null
+    applyProfileToVisibleCards("casual_viewer", {
+        login: "casual_viewer",
+        lastBroadcast: null
+    });
+    assert.strictEqual(lastStream.innerHTML.trim(), "", ".last_stream is empty when lastBroadcast is null");
+
+    // 10.2 lastBroadcast = { title: null }
+    applyProfileToVisibleCards("casual_viewer", {
+        login: "casual_viewer",
+        lastBroadcast: { title: null }
+    });
+    assert.strictEqual(lastStream.innerHTML.trim(), "", ".last_stream is empty when title is null");
+
+    // 10.3 lastBroadcast = { title: "   " }
+    applyProfileToVisibleCards("casual_viewer", {
+        login: "casual_viewer",
+        lastBroadcast: { title: "   " }
+    });
+    assert.strictEqual(lastStream.innerHTML.trim(), "", ".last_stream is empty when title is whitespace");
+
+    // 10.4 lastBroadcast omitted
+    applyProfileToVisibleCards("casual_viewer", {
+        login: "casual_viewer"
+    });
+    assert.strictEqual(lastStream.innerHTML.trim(), "", ".last_stream is empty when lastBroadcast is omitted");
 });
 
 async function run() {

@@ -151,18 +151,12 @@ function querySelectorInternal(root, selector) {
 function querySelectorAllInternal(node, selector, results) {
     for (const child of node.children) {
         let matches = false;
-        if (selector === '.nickname' || selector === 'a.nickname') {
-            if (child.classList.contains('nickname')) matches = true;
-        } else if (selector === '.followers') {
-            if (child.classList.contains('followers')) matches = true;
-        } else if (selector === '.bio') {
-            if (child.classList.contains('bio')) matches = true;
-        } else if (selector === '.avatar') {
-            if (child.classList.contains('avatar')) matches = true;
+        if (selector === 'a.nickname') {
+            if (child.tagName === 'A' && child.classList.contains('nickname')) matches = true;
         } else if (selector === '.avatar img') {
             if (child.tagName === 'IMG' && node.classList && node.classList.contains('avatar')) matches = true;
-        } else if (selector === '.timer-bar') {
-            if (child.classList.contains('timer-bar')) matches = true;
+        } else if (selector.startsWith('.')) {
+            if (child.classList.contains(selector.slice(1))) matches = true;
         } else if (selector.includes('[data-username]')) {
             if (child.dataset && child.dataset.username) matches = true;
         } else if (child.tagName === selector.toUpperCase()) {

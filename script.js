@@ -229,7 +229,9 @@ function showTwitchUser(type, user_name, css_class) {
             <div class="stats">
                 <div class="followers"></div>
                 <div class="average_viewers"></div>
+                <div class="created_at"></div>
             </div>
+            <div class="last_stream"></div>
             <div class="bio"></div>
             <div class="datetime">${time}</div> 
             <div class="type">[${type}]</div> 
@@ -681,6 +683,22 @@ async function getTwitchUsersData(usernames) {
     throw lastError;
 }
 
+function formatCreatedAt(dateVal) {
+    if (!dateVal) return '';
+    if (typeof dateVal === 'string') {
+        const match = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            return `${match[1]}.${match[2]}.${match[3]}`;
+        }
+    }
+    const date = new Date(dateVal);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}.${month}.${day}`;
+}
+
 function applyProfileToVisibleCards(username, userData) {
     if (!userData) return;
 
@@ -691,6 +709,8 @@ function applyProfileToVisibleCards(username, userData) {
         const nickname = line.querySelector('.nickname');
         const followers = line.querySelector('.followers');
         const avgViewersEl = line.querySelector('.average_viewers');
+        const createdAtEl = line.querySelector('.created_at');
+        const lastStreamEl = line.querySelector('.last_stream');
         const bio = line.querySelector('.bio');
 
         const rawLogin = (userData.login || username || '').toLowerCase();
@@ -716,6 +736,30 @@ function applyProfileToVisibleCards(username, userData) {
                 avgViewersEl.innerHTML = `Зрителей: <span class="count">${formattedAvg}</span>`;
             } else {
                 avgViewersEl.innerHTML = '';
+            }
+        }
+
+        if (createdAtEl) {
+            const formattedCreatedAt = formatCreatedAt(userData.createdAt);
+            if (formattedCreatedAt) {
+                createdAtEl.innerHTML = `Создан: <span class="count">${formattedCreatedAt}</span>`;
+            } else {
+                createdAtEl.innerHTML = '';
+            }
+        }
+
+        if (lastStreamEl) {
+            const streamTitle = (userData.lastBroadcast && typeof userData.lastBroadcast.title === 'string')
+                ? userData.lastBroadcast.title.trim()
+                : '';
+            if (streamTitle) {
+                lastStreamEl.innerHTML = `Стрим: <span class="title"></span>`;
+                const titleSpan = lastStreamEl.querySelector('.title');
+                if (titleSpan) {
+                    titleSpan.textContent = streamTitle;
+                }
+            } else {
+                lastStreamEl.innerHTML = '';
             }
         }
 

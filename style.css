@@ -197,9 +197,22 @@ body {
 }
 
 .line .stats .followers,
-.line .stats .average_viewers {
+.line .stats .average_viewers,
+.line .stats .created_at {
     font-size: 16px;
     color: #888;
+}
+
+.line .last_stream {
+    font-size: 14px;
+    color: #888;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.line .last_stream .title {
+    color: #eee;
 }
 
 .line .stats .count {
