@@ -11,11 +11,16 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-// --- TEST HARNESS ENVIRONMENT BUILDER ---
-
 function createTestEnvironment(options = {}) {
-    const scriptPath = path.join(__dirname, '../script.js');
-    const scriptCode = fs.readFileSync(scriptPath, 'utf-8');
+    const appScripts = [
+        path.join(__dirname, '../js/utils.js'),
+        path.join(__dirname, '../js/db.js'),
+        path.join(__dirname, '../js/api.js'),
+        path.join(__dirname, '../js/ui.js'),
+        path.join(__dirname, '../js/twitch.js'),
+        path.join(__dirname, '../script.js')
+    ];
+    const scriptCode = appScripts.map((file) => fs.readFileSync(file, 'utf-8')).join('\n;\n');
 
     const storage = new Map(Object.entries(options.localStorage || {}));
     const mockLocalStorage = {

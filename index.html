@@ -68,9 +68,14 @@
             const version = Date.now();
             const withVersion = (file) => `${file}?v=${version}`;
 
-            // Порядок зависимостей: script.js выполняется после config.js
+            // Порядок зависимостей: утилиты, БД, API, UI, Twitch-клиент, входная точка
             const jsFiles = [
                 'config.js',
+                'js/utils.js',
+                'js/db.js',
+                'js/api.js',
+                'js/ui.js',
+                'js/twitch.js',
                 'script.js'
             ];
 
