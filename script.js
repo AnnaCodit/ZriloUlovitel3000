@@ -9,12 +9,22 @@ const AVATAR_SIZE_KEY = "viewerAvatarSize";
 const DEFAULT_AVATAR_SIZE = 150;
 const VIEWER_ONLY_NEW_KEY = "viewerOnlyNew";
 const DEFAULT_RECENT_VIEWER_DURATION_SEC = 60;
+const RAID_THRESHOLD_KEY = "raidThreshold";
+const DEFAULT_RAID_THRESHOLD = 10;
+const RAID_BUFFER_WINDOW_MS = 2000;
 
 function getRecentViewerDuration() {
     if (typeof RECENT_VIEWER_DURATION_SEC === 'number' && Number.isFinite(RECENT_VIEWER_DURATION_SEC) && RECENT_VIEWER_DURATION_SEC > 0) {
         return RECENT_VIEWER_DURATION_SEC;
     }
     return DEFAULT_RECENT_VIEWER_DURATION_SEC;
+}
+
+function getRaidThreshold() {
+    if (typeof RAID_THRESHOLD === 'number' && Number.isFinite(RAID_THRESHOLD) && RAID_THRESHOLD >= 2) {
+        return Math.min(100, Math.max(2, Math.round(RAID_THRESHOLD)));
+    }
+    return DEFAULT_RAID_THRESHOLD;
 }
 
 function getTwitchChannel() {
@@ -35,6 +45,9 @@ let twitchClient = null;
 let viewerFeedLimit = MAX_LOG_LINES;
 let avatarSize = DEFAULT_AVATAR_SIZE;
 let onlyNewViewers = false;
+let raidThreshold = DEFAULT_RAID_THRESHOLD;
+let joinBuffer = [];
+let joinBufferTimer = null;
 let profileLoadTimer = null;
 let profileQueueRunning = false;
 let profileRefreshRequested = false;
@@ -125,12 +138,8 @@ function isCoolUser(username) {
     return COOL_USERS.some((u) => typeof u === 'string' && u.trim().toLowerCase() === lower);
 }
 
-function checkViewer(username, event = '') {
-    if (!username || typeof username !== 'string') return;
-    const cleanUsername = username.trim().toLowerCase();
-
-    // если бот - скип
-    if (isBot(cleanUsername)) return;
+function processViewer(cleanUsername, event = '') {
+    if (!db || !cleanUsername) return;
 
     let user_class = 'normal';
     if (isCoolUser(cleanUsername)) user_class = 'special';
@@ -140,7 +149,15 @@ function checkViewer(username, event = '') {
     const req = store.get(cleanUsername);
 
     req.onsuccess = () => {
-        if (req.result) {
+        const viewer = req.result;
+        if (viewer && viewer.temporary) {
+            // Зритель был записан во время рейда, а теперь зашел индивидуально ("по-настоящему")
+            viewer.firstSeen = Date.now();
+            delete viewer.temporary;
+            const putRequest = store.put(viewer);
+            putRequest.onsuccess = scheduleNewViewersCountUpdate;
+            showTwitchUser("ALERT", cleanUsername, "new");
+        } else if (viewer) {
             // Старичок (уже есть в базе)
             if (!onlyNewViewers || isCoolUser(cleanUsername)) {
                 showTwitchUser("JOIN", cleanUsername, user_class);
@@ -152,6 +169,104 @@ function checkViewer(username, event = '') {
             showTwitchUser("ALERT", cleanUsername, "new");
         }
     };
+}
+
+function checkViewer(username, event = '') {
+    if (!username || typeof username !== 'string') return;
+    const cleanUsername = username.trim().toLowerCase();
+
+    // если бот - скип
+    if (isBot(cleanUsername)) return;
+
+    processViewer(cleanUsername, event);
+}
+
+function enqueueViewer(username, event = 'join') {
+    if (!username || typeof username !== 'string') return;
+    const cleanUsername = username.trim().toLowerCase();
+
+    // если бот - скип
+    if (isBot(cleanUsername)) return;
+
+    joinBuffer.push(cleanUsername);
+
+    if (!joinBufferTimer) {
+        joinBufferTimer = setTimeout(flushJoinBuffer, RAID_BUFFER_WINDOW_MS);
+    }
+}
+
+function flushJoinBuffer() {
+    clearTimeout(joinBufferTimer);
+    joinBufferTimer = null;
+    if (joinBuffer.length === 0) return;
+
+    const batch = Array.from(new Set(joinBuffer));
+    joinBuffer = [];
+
+    if (batch.length >= raidThreshold) {
+        processRaidBatch(batch);
+    } else {
+        batch.forEach((cleanUsername) => {
+            processViewer(cleanUsername, 'join');
+        });
+    }
+}
+
+function processRaidBatch(batch) {
+    if (!db || !batch || batch.length === 0) return;
+
+    const tx = db.transaction(["viewers"], "readwrite");
+    const store = tx.objectStore("viewers");
+
+    batch.forEach((cleanUsername) => {
+        const req = store.get(cleanUsername);
+        req.onsuccess = () => {
+            const viewer = req.result;
+            if (!viewer) {
+                // Новый зритель при рейде: сохраняем как временного без firstSeen
+                store.add({ username: cleanUsername, temporary: true });
+            }
+        };
+    });
+
+    showRaidAlert(batch.length);
+}
+
+function showRaidAlert(count) {
+    const logDiv = document.getElementById('viewers');
+    if (!logDiv) return;
+    const line = document.createElement('div');
+    line.classList.add('line', 'raid', 'special', 'just-added');
+    const time = new Date().toLocaleTimeString('ru-RU');
+
+    let last_element = logDiv.firstChild;
+    if (last_element) last_element.classList.add('separated');
+
+    line.innerHTML = `
+        <div class="avatar raid-avatar">
+            <div class="raid-icon">⚡</div>
+        </div>
+        <div class="info">
+            <div class="nickname raid-title">Наплыв рейда: +${count} зрителей</div>
+            <div class="bio">Защита от рейдов: зрители сохранены как временные и будут встречены как новые при следующем визите.</div>
+            <div class="datetime">${time}</div>
+            <div class="type">[RAID]</div>
+        </div>
+        <div class="timer-bar"></div>
+    `;
+
+    const timerBar = line.querySelector('.timer-bar');
+    if (timerBar) {
+        const recentDuration = getRecentViewerDuration();
+        timerBar.style.animationDuration = `${recentDuration}s`;
+        timerBar.addEventListener('animationend', () => {
+            timerBar.remove();
+            line.classList.remove('just-added');
+        });
+    }
+
+    logDiv.prepend(line);
+    trimViewerFeed();
 }
 
 // --- ЛОГИКА TMI.JS ---
@@ -199,7 +314,7 @@ function startTwitchListener() {
     // Событие JOIN (Кто-то зашел)
     twitchClient.on('join', (channel, username, self) => {
         if (self) return; // Игнорируем себя (хотя для анонима это редкость)
-        checkViewer(username, 'join');
+        enqueueViewer(username, 'join');
     });
 
     // (Опционально) Событие MESSAGE - если хочешь ловить тех, кто написал, но join не сработал
@@ -281,16 +396,19 @@ function initializeViewerSettings() {
     const feedLimitInput = document.getElementById('viewerFeedLimit');
     const avatarSizeInput = document.getElementById('avatarSize');
     const onlyNewInput = document.getElementById('onlyNewViewers');
+    const raidThresholdInput = document.getElementById('raidThreshold');
 
     currentTwitchChannel = getTwitchChannel();
     viewerFeedLimit = readNumberSetting(VIEWER_FEED_LIMIT_KEY, MAX_LOG_LINES, 1, 500);
     avatarSize = readNumberSetting(AVATAR_SIZE_KEY, DEFAULT_AVATAR_SIZE, 32, 300);
     onlyNewViewers = readBooleanSetting(VIEWER_ONLY_NEW_KEY, false);
+    raidThreshold = readNumberSetting(RAID_THRESHOLD_KEY, getRaidThreshold(), 2, 100);
 
     if (channelInput) channelInput.value = currentTwitchChannel;
     if (feedLimitInput) feedLimitInput.value = viewerFeedLimit;
     if (avatarSizeInput) avatarSizeInput.value = avatarSize;
     if (onlyNewInput) onlyNewInput.checked = onlyNewViewers;
+    if (raidThresholdInput) raidThresholdInput.value = raidThreshold;
 
     updateChannelDisplay(currentTwitchChannel);
     applyAvatarSize();
@@ -345,6 +463,21 @@ function initializeViewerSettings() {
         });
     }
 
+    if (raidThresholdInput) {
+        raidThresholdInput.addEventListener('input', () => {
+            const value = Number.parseInt(raidThresholdInput.value, 10);
+            if (!Number.isFinite(value)) return;
+            raidThreshold = Math.min(100, Math.max(2, value));
+            writeNumberSetting(RAID_THRESHOLD_KEY, raidThreshold);
+        });
+
+        raidThresholdInput.addEventListener('change', () => {
+            raidThreshold = clampNumber(raidThresholdInput.value, 2, 100, getRaidThreshold());
+            raidThresholdInput.value = raidThreshold;
+            writeNumberSetting(RAID_THRESHOLD_KEY, raidThreshold);
+        });
+    }
+
     if (feedLimitInput) {
         feedLimitInput.addEventListener('input', () => {
             const value = Number.parseInt(feedLimitInput.value, 10);
@@ -391,6 +524,10 @@ function initializeViewerSettings() {
             }
             if (onlyNewInput) {
                 writeBooleanSetting(VIEWER_ONLY_NEW_KEY, onlyNewInput.checked);
+            }
+            if (raidThresholdInput) {
+                const threshold = clampNumber(raidThresholdInput.value, 2, 100, getRaidThreshold());
+                writeNumberSetting(RAID_THRESHOLD_KEY, threshold);
             }
             if (feedLimitInput) {
                 const limit = clampNumber(feedLimitInput.value, 1, 500, MAX_LOG_LINES);

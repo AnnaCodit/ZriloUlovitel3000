@@ -520,12 +520,14 @@ test("Test 9: Кнопка 'Сохранить' сохраняет все пар
 
     const channelInput = env.getMockElement("twitchChannel");
     const onlyNewInput = env.getMockElement("onlyNewViewers");
+    const raidThresholdInput = env.getMockElement("raidThreshold");
     const feedLimitInput = env.getMockElement("viewerFeedLimit");
     const avatarSizeInput = env.getMockElement("avatarSize");
     const saveBtn = env.getMockElement("saveSettingsBtn");
 
     channelInput.value = " #MyCustomStreamer ";
     onlyNewInput.checked = true;
+    raidThresholdInput.value = "15";
     feedLimitInput.value = "75";
     avatarSizeInput.value = "200";
 
@@ -535,6 +537,7 @@ test("Test 9: Кнопка 'Сохранить' сохраняет все пар
 
     assert.strictEqual(env.localStorage.getItem("twitchChannel"), "mycustomstreamer", "Канал сохранен");
     assert.strictEqual(env.localStorage.getItem("viewerOnlyNew"), "true", "onlyNewViewers сохранен");
+    assert.strictEqual(env.localStorage.getItem("raidThreshold"), "15", "raidThreshold сохранен");
     assert.strictEqual(env.localStorage.getItem("viewerFeedLimit"), "75", "feedLimit сохранен");
     assert.strictEqual(env.localStorage.getItem("viewerAvatarSize"), "200", "avatarSize сохранен");
     assert.strictEqual(env.getReloadCount(), 1, "Перезагрузка страницы была вызвана 1 раз");

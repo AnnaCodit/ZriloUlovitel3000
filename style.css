@@ -355,3 +355,30 @@ body {
     background-color: #00ffff;
     box-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
 }
+
+.line.raid .nickname.raid-title {
+    color: #00ffff;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+    font-size: 24px;
+}
+
+.line .avatar.raid-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #001a1a;
+    border: 1px solid #00ffff;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.line .avatar.raid-avatar .raid-icon {
+    font-size: calc(var(--viewer-avatar-size) * 0.45);
+    line-height: 1;
+    user-select: none;
+    text-shadow: 0 0 10px #00ffff;
+}
+
+.line.raid .timer-bar {
+    background-color: #00ffff;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
+}
