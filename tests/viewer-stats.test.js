@@ -767,6 +767,69 @@ test("applyProfileToVisibleCards leaves .last_stream empty when lastBroadcast or
     assert.strictEqual(lastStream.innerHTML.trim(), "", ".last_stream is empty when lastBroadcast is omitted");
 });
 
+// ====================================================================
+// Test 11: Тестовая карточка fra3a при загрузке страницы / базы данных
+// ====================================================================
+test("renderTestViewer creates test card with JOIN type, fra3a username, and loads IVR profile data", async () => {
+    let requestedUrls = [];
+    const ivrUserData = [{
+        login: "fra3a",
+        displayName: "FRA3A",
+        followers: 2558,
+        createdAt: "2025-01-27T00:58:54.950382Z",
+        logo: "https://example.com/fra3a.png",
+        bio: "Test bio",
+        lastBroadcast: {
+            title: "Test stream title"
+        }
+    }];
+
+    const { context, viewersDiv, setFetchHandler, processVisibleProfiles } = setupTest();
+
+    setFetchHandler(async (url) => {
+        requestedUrls.push(String(url));
+        if (String(url).includes('api.ivr.fi')) {
+            return {
+                ok: true,
+                json: () => Promise.resolve(ivrUserData)
+            };
+        }
+        if (String(url).includes('twitchtracker.com')) {
+            return {
+                ok: true,
+                json: () => Promise.resolve({ avg_viewers: 94 })
+            };
+        }
+        return { ok: false };
+    });
+
+    const testCard = viewersDiv.children.find(c => c.dataset && c.dataset.username === 'fra3a');
+    assert.ok(testCard, "Test card for fra3a exists in viewers log on startup");
+
+    const typeEl = testCard.querySelector('.type');
+    assert.ok(typeEl, ".type element exists in test card");
+    assert.strictEqual(typeEl.textContent.trim(), "[JOIN]", "Test card has [JOIN] type");
+
+    const nicknameEl = testCard.querySelector('.nickname');
+    assert.ok(nicknameEl, ".nickname element exists");
+    assert.strictEqual(nicknameEl.href, "https://twitch.tv/fra3a", "Link points to fra3a twitch");
+
+    // Выполняем загрузку профилей
+    await processVisibleProfiles();
+
+    assert.strictEqual(nicknameEl.textContent, "FRA3A", "DisplayName is updated from IVR data");
+    const followersEl = testCard.querySelector('.followers');
+    assert.strictEqual(followersEl.textContent.trim(), "Фоловеров: 2558");
+    const avgViewersEl = testCard.querySelector('.average_viewers');
+    assert.strictEqual(avgViewersEl.textContent.trim(), "Зрителей: 94");
+    const createdAtEl = testCard.querySelector('.created_at');
+    assert.strictEqual(createdAtEl.textContent.trim(), "Создан: 2025.01.27");
+    const lastStreamEl = testCard.querySelector('.last_stream');
+    assert.strictEqual(lastStreamEl.textContent.trim(), "Стрим: Test stream title");
+    const bioEl = testCard.querySelector('.bio');
+    assert.strictEqual(bioEl.textContent.trim(), "Test bio");
+});
+
 async function run() {
     console.log("==================================================");
     console.log("  Running ZriloUlovitel3000 Viewer Stats Tests");

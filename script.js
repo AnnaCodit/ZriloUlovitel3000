@@ -87,6 +87,8 @@ request.onsuccess = (e) => {
             };
         });
     }
+
+    renderTestViewer();
 };
 
 // --- ФУНКЦИЯ ПРОВЕРКИ ---
@@ -211,6 +213,7 @@ function startTwitchListener() {
 function showTwitchUser(type, user_name, css_class) {
 
     const logDiv = document.getElementById('viewers');
+    if (!logDiv) return;
     const line = document.createElement('div');
     line.classList.add('line', css_class, 'just-added');
     const normalizedUsername = user_name.toLowerCase();
@@ -265,6 +268,12 @@ function showTwitchUser(type, user_name, css_class) {
     }
 
     scheduleVisibleProfilesLoad();
+}
+
+function renderTestViewer(username = 'fra3a') {
+    const testUsername = (typeof username === 'string' && username.trim()) ? username.trim() : 'fra3a';
+    const userClass = isCoolUser(testUsername) ? 'special' : 'normal';
+    showTwitchUser("JOIN", testUsername, userClass);
 }
 
 function initializeViewerSettings() {
