@@ -530,6 +530,7 @@ test("Test 9: Кнопка 'Сохранить' сохраняет все пар
     const raidThresholdInput = env.getMockElement("raidThreshold");
     const feedLimitInput = env.getMockElement("viewerFeedLimit");
     const avatarSizeInput = env.getMockElement("avatarSize");
+    const coolUsersInput = env.getMockElement("coolUsers");
     const saveBtn = env.getMockElement("saveSettingsBtn");
 
     channelInput.value = " #MyCustomStreamer ";
@@ -537,6 +538,7 @@ test("Test 9: Кнопка 'Сохранить' сохраняет все пар
     raidThresholdInput.value = "15";
     feedLimitInput.value = "75";
     avatarSizeInput.value = "200";
+    coolUsersInput.value = " vip1, @Vip2 , vip3 ";
 
     assert.strictEqual(env.getReloadCount(), 0, "До нажатия кнопки reload не вызывался");
 
@@ -547,6 +549,7 @@ test("Test 9: Кнопка 'Сохранить' сохраняет все пар
     assert.strictEqual(env.localStorage.getItem("raidThreshold"), "15", "raidThreshold сохранен");
     assert.strictEqual(env.localStorage.getItem("viewerFeedLimit"), "75", "feedLimit сохранен");
     assert.strictEqual(env.localStorage.getItem("viewerAvatarSize"), "200", "avatarSize сохранен");
+    assert.strictEqual(env.localStorage.getItem("coolUsers"), "vip1, @Vip2 , vip3", "coolUsers сохранен");
     assert.strictEqual(env.getReloadCount(), 1, "Перезагрузка страницы была вызвана 1 раз");
 });
 
@@ -566,6 +569,56 @@ test("Test 10: Кнопка ⚙️ (settingsToggleBtn) переключает к
 
     toggleBtn.dispatchEvent("click");
     assert.strictEqual(panelActions.classList.contains('is-open'), false, "После второго клика класс is-open снимается");
+});
+
+// ==========================================
+// TEST 11: UI инпут coolUsers считывает список из localStorage и сохраняет при вводе
+// ==========================================
+test("Test 11: UI инпут coolUsers инициализируется из localStorage и сохраняет при change/input", () => {
+    const env = createTestEnvironment({
+        localStorage: {
+            coolUsers: "streamer1, streamer2"
+        }
+    });
+
+    const coolUsersInput = env.getMockElement("coolUsers");
+    assert.strictEqual(coolUsersInput.value, "streamer1, streamer2", "Значение инпута заполнено из localStorage");
+
+    coolUsersInput.value = "new_vip, another_vip";
+    coolUsersInput.dispatchEvent("change");
+    assert.strictEqual(env.localStorage.getItem("coolUsers"), "new_vip, another_vip", "Сохранено в localStorage по событию change");
+
+    coolUsersInput.value = "vip_live_input";
+    coolUsersInput.dispatchEvent("input");
+    assert.strictEqual(env.localStorage.getItem("coolUsers"), "vip_live_input", "Сохранено в localStorage по событию input");
+});
+
+// ==========================================
+// TEST 12: isCoolUser и getCoolUsers парсят ники, убирают @, case-insensitive и по-умолчанию пусты
+// ==========================================
+test("Test 12: getCoolUsers и isCoolUser корректно парсят разделители, @, регистр и пустые значения", () => {
+    // 12.1 По умолчанию пусто, если нет localStorage и config
+    const envEmpty = createTestEnvironment({
+        coolUsers: [],
+        localStorage: {}
+    });
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(envEmpty.ctx.getCoolUsers())), [], "По умолчанию getCoolUsers возвращает пустой массив");
+    assert.strictEqual(envEmpty.ctx.isCoolUser("anyuser"), false);
+
+    // 12.2 Загрузка из localStorage со сложным форматированием
+    const envCustom = createTestEnvironment({
+        localStorage: {
+            coolUsers: " Alice,  @BOB , Charlie\nDave,   "
+        }
+    });
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(envCustom.ctx.getCoolUsers())), ["alice", "bob", "charlie", "dave"]);
+    assert.strictEqual(envCustom.ctx.isCoolUser("Alice"), true);
+    assert.strictEqual(envCustom.ctx.isCoolUser("bob"), true);
+    assert.strictEqual(envCustom.ctx.isCoolUser("@CHARLIE"), true);
+    assert.strictEqual(envCustom.ctx.isCoolUser("dave"), true);
+    assert.strictEqual(envCustom.ctx.isCoolUser("eve"), false);
+    assert.strictEqual(envCustom.ctx.isCoolUser(""), false);
+    assert.strictEqual(envCustom.ctx.isCoolUser(null), false);
 });
 
 // --- RUNNER ---

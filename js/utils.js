@@ -9,12 +9,24 @@ const PROFILE_LOAD_DELAY = 500;
 const TWITCH_CHANNEL_KEY = "twitchChannel";
 const VIEWER_FEED_LIMIT_KEY = "viewerFeedLimit";
 const AVATAR_SIZE_KEY = "viewerAvatarSize";
-const DEFAULT_AVATAR_SIZE = 150;
+const DEFAULT_AVATAR_SIZE = 50;
 const VIEWER_ONLY_NEW_KEY = "viewerOnlyNew";
 const DEFAULT_RECENT_VIEWER_DURATION_SEC = 60;
 const RAID_THRESHOLD_KEY = "raidThreshold";
 const DEFAULT_RAID_THRESHOLD = 10;
 const RAID_BUFFER_WINDOW_MS = 2000;
+const DEFAULT_MIN_FOLLOWERS_THRESHOLD = 10;
+const COOL_USERS_KEY = "coolUsers";
+
+function getMinFollowersThreshold() {
+    if (typeof MIN_FOLLOWERS_THRESHOLD === 'number' && Number.isFinite(MIN_FOLLOWERS_THRESHOLD) && MIN_FOLLOWERS_THRESHOLD >= 0) {
+        return Math.round(MIN_FOLLOWERS_THRESHOLD);
+    }
+    if (typeof MIN_FOLLOWERS === 'number' && Number.isFinite(MIN_FOLLOWERS) && MIN_FOLLOWERS >= 0) {
+        return Math.round(MIN_FOLLOWERS);
+    }
+    return DEFAULT_MIN_FOLLOWERS_THRESHOLD;
+}
 
 function getRecentViewerDuration() {
     if (typeof RECENT_VIEWER_DURATION_SEC === 'number' && Number.isFinite(RECENT_VIEWER_DURATION_SEC) && RECENT_VIEWER_DURATION_SEC > 0) {
@@ -105,10 +117,111 @@ function isBot(username) {
     return BOTS.some((b) => typeof b === 'string' && b.trim().toLowerCase() === lower);
 }
 
+function getCoolUsersRaw() {
+    const fallback = (typeof COOL_USERS !== 'undefined' && Array.isArray(COOL_USERS) && COOL_USERS.length > 0)
+        ? COOL_USERS.join(', ')
+        : '';
+    return readStringSetting(COOL_USERS_KEY, fallback);
+}
+
+function getCoolUsers() {
+    const raw = getCoolUsersRaw();
+    if (!raw) return [];
+    return raw
+        .split(/[\s,]+/)
+        .map((u) => u.trim().replace(/^@/, '').toLowerCase())
+        .filter(Boolean);
+}
+
 function isCoolUser(username) {
-    if (!username || typeof COOL_USERS === 'undefined' || !Array.isArray(COOL_USERS)) return false;
-    const lower = String(username).trim().toLowerCase();
-    return COOL_USERS.some((u) => typeof u === 'string' && u.trim().toLowerCase() === lower);
+    if (!username) return false;
+    const lower = String(username).trim().toLowerCase().replace(/^@/, '');
+    const list = getCoolUsers();
+    return list.includes(lower);
+}
+
+function getYearsPlural(years) {
+    const mod10 = years % 10;
+    const mod100 = years % 100;
+    if (mod100 >= 11 && mod100 <= 19) {
+        return `${years} лет`;
+    }
+    if (mod10 === 1) {
+        return `${years} год`;
+    }
+    if (mod10 >= 2 && mod10 <= 4) {
+        return `${years} года`;
+    }
+    return `${years} лет`;
+}
+
+function getDaysPlural(days) {
+    const mod10 = days % 10;
+    const mod100 = days % 100;
+    if (mod100 >= 11 && mod100 <= 19) {
+        return `${days} дней`;
+    }
+    if (mod10 === 1) {
+        return `${days} день`;
+    }
+    if (mod10 >= 2 && mod10 <= 4) {
+        return `${days} дня`;
+    }
+    return `${days} дней`;
+}
+
+function formatAccountAge(dateVal, nowVal = Date.now()) {
+    if (!dateVal) return null;
+    const createdDate = new Date(dateVal);
+    if (isNaN(createdDate.getTime())) return null;
+
+    const nowDate = new Date(nowVal);
+    if (isNaN(nowDate.getTime())) return null;
+
+    let diffMs = nowDate.getTime() - createdDate.getTime();
+    if (diffMs < 0) diffMs = 0;
+
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    let years = nowDate.getUTCFullYear() - createdDate.getUTCFullYear();
+    let months = nowDate.getUTCMonth() - createdDate.getUTCMonth();
+    let days = nowDate.getUTCDate() - createdDate.getUTCDate();
+
+    if (days < 0) {
+        months--;
+    }
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    const totalMonths = years * 12 + months;
+
+    if (years >= 1) {
+        return {
+            text: getYearsPlural(years),
+            isDanger: false,
+            type: 'years',
+            value: years
+        };
+    }
+
+    if (totalMonths >= 1) {
+        return {
+            text: `${totalMonths} мес.`,
+            isDanger: false,
+            type: 'months',
+            value: totalMonths
+        };
+    }
+
+    const finalDays = Math.max(0, diffDays);
+    return {
+        text: getDaysPlural(finalDays),
+        isDanger: true,
+        type: 'days',
+        value: finalDays
+    };
 }
 
 function formatCreatedAt(dateVal) {

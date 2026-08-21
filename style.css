@@ -1,5 +1,5 @@
 :root {
-    --viewer-avatar-size: 150px;
+    --viewer-avatar-size: 50px;
 }
 
 body {
@@ -203,7 +203,26 @@ body {
     color: #888;
 }
 
-.line .last_stream {
+.line .stats .created_at.danger {
+    color: #ff7878;
+}
+
+.line .stats .created_at.danger .count,
+.line .stats .created_at .count.danger {
+    color: #ff334b;
+}
+
+.line .stats .created_at.normal {
+    color: #888;
+}
+
+.line .stats .created_at.normal .count,
+.line .stats .created_at .count.normal {
+    color: #00ff41;
+}
+
+.line .last_stream,
+.line .bio {
     font-size: 14px;
     color: #888;
     margin-top: 4px;
@@ -211,7 +230,13 @@ body {
     word-break: break-word;
 }
 
-.line .last_stream .title {
+.line .last_stream .label,
+.line .bio .label {
+    color: #888;
+}
+
+.line .last_stream .title,
+.line .bio .text {
     color: #eee;
 }
 

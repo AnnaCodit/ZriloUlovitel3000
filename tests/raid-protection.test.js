@@ -525,6 +525,117 @@ test("Test 9: Кастомный RAID_THRESHOLD из config учитываетс
     assert.strictEqual(ctx.getRaidThreshold(), 20);
 });
 
+// ==========================================
+// TEST 10: Одновременный заход старых зрителей (>= порога) НЕ триггерит рейд
+// ==========================================
+test("Test 10: Одновременный заход старых зрителей (>= порога) не вызывает алерт рейда и выводит обычные JOIN", async () => {
+    const t0 = 1700000000000;
+    const initialViewers = {};
+    for (let i = 1; i <= 15; i++) {
+        initialViewers[`old_user_${i}`] = { username: `old_user_${i}`, firstSeen: 1600000000000 };
+    }
+
+    const env = createTestEnvironment({
+        now: t0,
+        initialViewers
+    });
+
+    for (let i = 1; i <= 15; i++) {
+        env.enqueueViewer(`old_user_${i}`);
+    }
+
+    await env.flushJoinBuffer();
+
+    assert.strictEqual(env.shownRaidAlerts.length, 0, "Рейд не должен срабатывать на старичков");
+    assert.strictEqual(env.shownFeedEvents.length, 15, "Все 15 старичков должны получить событие JOIN");
+    for (let i = 1; i <= 15; i++) {
+        const record = env.viewersDb.get(`old_user_${i}`);
+        assert.strictEqual(record.firstSeen, 1600000000000, "firstSeen не должен перезаписываться");
+        assert.strictEqual(record.temporary, undefined, "старичок не должен быть помечен как temporary");
+    }
+});
+
+// ==========================================
+// TEST 11: Смешанная пачка (новых < порога, старичков много) НЕ триггерит рейд
+// ==========================================
+test("Test 11: Смешанная пачка, где новых зрителей меньше порога (3 новых + 12 старичков при пороге 10) не триггерит рейд", async () => {
+    const t0 = 1700000000000;
+    const initialViewers = {};
+    for (let i = 1; i <= 12; i++) {
+        initialViewers[`old_user_${i}`] = { username: `old_user_${i}`, firstSeen: 1600000000000 };
+    }
+
+    const env = createTestEnvironment({
+        now: t0,
+        initialViewers
+    });
+
+    for (let i = 1; i <= 12; i++) {
+        env.enqueueViewer(`old_user_${i}`);
+    }
+    for (let i = 1; i <= 3; i++) {
+        env.enqueueViewer(`new_user_${i}`);
+    }
+
+    await env.flushJoinBuffer();
+
+    assert.strictEqual(env.shownRaidAlerts.length, 0, "Рейд не должен сработать, так как новых только 3 (< 10)");
+    assert.strictEqual(env.shownFeedEvents.length, 15, "Все 15 пользователей должны появиться в ленте");
+
+    // Проверяем, что 3 новых получили ALERT (new) и записаны с firstSeen
+    const alertEvents = env.shownFeedEvents.filter(e => e.type === "ALERT");
+    const joinEvents = env.shownFeedEvents.filter(e => e.type === "JOIN");
+    assert.strictEqual(alertEvents.length, 3, "Должно быть 3 алерта для новых зрителей");
+    assert.strictEqual(joinEvents.length, 12, "Должно быть 12 событий JOIN для старичков");
+
+    for (let i = 1; i <= 3; i++) {
+        const record = env.viewersDb.get(`new_user_${i}`);
+        assert.strictEqual(record.firstSeen, t0, "Новые зрители должны получить firstSeen");
+        assert.strictEqual(record.temporary, undefined, "Новые зрители не должны быть temporary");
+    }
+});
+
+// ==========================================
+// TEST 12: Смешанная пачка (новых >= порога) триггерит рейд только на новых
+// ==========================================
+test("Test 12: Смешанная пачка (12 новых + 4 старичка при пороге 10) триггерит рейд на 12 новых, а старичков выводит как JOIN", async () => {
+    const t0 = 1700000000000;
+    const initialViewers = {};
+    for (let i = 1; i <= 4; i++) {
+        initialViewers[`old_user_${i}`] = { username: `old_user_${i}`, firstSeen: 1600000000000 };
+    }
+
+    const env = createTestEnvironment({
+        now: t0,
+        initialViewers
+    });
+
+    for (let i = 1; i <= 12; i++) {
+        env.enqueueViewer(`raider_new_${i}`);
+    }
+    for (let i = 1; i <= 4; i++) {
+        env.enqueueViewer(`old_user_${i}`);
+    }
+
+    await env.flushJoinBuffer();
+
+    assert.strictEqual(env.shownRaidAlerts.length, 1, "Должен быть вызван алерт рейда");
+    assert.strictEqual(env.shownRaidAlerts[0].count, 12, "Счетчик рейда должен учитывать только новых (12)");
+
+    // Старички должны отобразиться в ленте
+    assert.strictEqual(env.shownFeedEvents.length, 4, "4 старичка должны получить карточки JOIN в ленте");
+    for (let i = 1; i <= 4; i++) {
+        assert.strictEqual(env.shownFeedEvents.some(e => e.username === `old_user_${i}` && e.type === "JOIN"), true);
+    }
+
+    // Новые зрители должны быть помечены как temporary
+    for (let i = 1; i <= 12; i++) {
+        const record = env.viewersDb.get(`raider_new_${i}`);
+        assert.strictEqual(record.temporary, true, "Новый рейдер должен быть temporary");
+        assert.strictEqual(record.firstSeen, undefined, "Новый рейдер не должен иметь firstSeen");
+    }
+});
+
 // --- RUNNER ---
 
 async function runTestSuite() {

@@ -79,11 +79,71 @@ function flushJoinBuffer() {
     const batch = Array.from(new Set(joinBuffer));
     joinBuffer = [];
 
-    if (batch.length >= raidThreshold) {
-        processRaidBatch(batch);
-    } else {
-        batch.forEach((cleanUsername) => {
-            processViewer(cleanUsername, 'join');
+    processJoinBatch(batch);
+}
+
+function processJoinBatch(batch) {
+    if (!db || !batch || batch.length === 0) return;
+
+    const uniqueBatch = Array.from(new Set(batch));
+
+    try {
+        const tx = db.transaction(["viewers"], "readonly");
+        const store = tx.objectStore("viewers");
+
+        const records = new Map();
+        let pending = uniqueBatch.length;
+
+        const onCheckComplete = () => {
+            const newViewers = [];
+            const oldViewers = [];
+
+            uniqueBatch.forEach((username) => {
+                const viewer = records.get(username);
+                // Зритель считается старичком, если он уже есть в базе и не является временным
+                if (viewer && !viewer.temporary) {
+                    oldViewers.push(username);
+                } else {
+                    newViewers.push(username);
+                }
+            });
+
+            if (newViewers.length >= raidThreshold) {
+                // Наплыв рейда: порог превышен именно новыми зрителями
+                processRaidBatch(newViewers);
+                // Старичков из этой же пачки обрабатываем в штатном режиме
+                oldViewers.forEach((username) => {
+                    processViewer(username, 'join');
+                });
+            } else {
+                // Новых зрителей меньше порога рейда — обрабатываем всех штатно
+                uniqueBatch.forEach((username) => {
+                    processViewer(username, 'join');
+                });
+            }
+        };
+
+        uniqueBatch.forEach((username) => {
+            const req = store.get(username);
+            req.onsuccess = () => {
+                records.set(username, req.result);
+                pending--;
+                if (pending === 0) {
+                    onCheckComplete();
+                }
+            };
+            req.onerror = () => {
+                records.set(username, undefined);
+                pending--;
+                if (pending === 0) {
+                    onCheckComplete();
+                }
+            };
+        });
+    } catch (err) {
+        console.error("[Twitch/DB] Ошибка при проверке пачки зрителей:", err);
+        uniqueBatch.forEach((username) => {
+            processViewer(username, 'join');
         });
     }
 }

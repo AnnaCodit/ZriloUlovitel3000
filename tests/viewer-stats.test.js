@@ -71,6 +71,17 @@ function createSimpleDomNode(tagName = 'div') {
         }
     };
 
+    let classNameValue = '';
+    Object.defineProperty(node, 'className', {
+        get() { return Array.from(this.classList.classes).join(' '); },
+        set(val) {
+            this.classList.classes.clear();
+            if (val) {
+                String(val).trim().split(/\s+/).forEach(c => this.classList.classes.add(c));
+            }
+        }
+    });
+
     let directText = '';
     Object.defineProperty(node, '_directText', {
         get() { return directText; },
@@ -327,6 +338,7 @@ function setupTest(overrides = {}) {
         BOTS: ['nightbot'],
         COOL_USERS: ['vip_user'],
         MAX_LOG_LINES: 10,
+        MIN_FOLLOWERS_THRESHOLD: overrides.minFollowersThreshold,
         localStorage: {
             getItem: () => null,
             setItem: () => {}
@@ -397,9 +409,9 @@ function test(name, fn) {
 }
 
 // ====================================================================
-// Test 1: DOM разметка карточки зрителя (.stats, .followers, .average_viewers, .created_at, .last_stream)
+// Test 1: DOM разметка карточки зрителя (.stats: created_at -> followers -> average_viewers, plus .last_stream in .info)
 // ====================================================================
-test("showTwitchUser renders .stats container containing .followers, .average_viewers, and .created_at, plus .last_stream in .info", () => {
+test("showTwitchUser renders .stats container with .created_at first, then .followers, then .average_viewers", () => {
     const { showTwitchUser, viewersDiv } = setupTest();
 
     showTwitchUser("JOIN", "Streamer123", "normal");
@@ -410,6 +422,10 @@ test("showTwitchUser renders .stats container containing .followers, .average_vi
     const stats = line.querySelector('.stats');
     assert.ok(stats, ".stats container exists inside .line");
 
+    const createdAt = line.querySelector('.created_at');
+    assert.ok(createdAt, ".created_at element exists");
+    assert.strictEqual(createdAt.parentNode, stats, ".created_at is a direct child of .stats");
+
     const followers = line.querySelector('.followers');
     assert.ok(followers, ".followers element exists");
     assert.strictEqual(followers.parentNode, stats, ".followers is a direct child of .stats");
@@ -418,9 +434,10 @@ test("showTwitchUser renders .stats container containing .followers, .average_vi
     assert.ok(avgViewers, ".average_viewers element exists");
     assert.strictEqual(avgViewers.parentNode, stats, ".average_viewers is a direct child of .stats");
 
-    const createdAt = line.querySelector('.created_at');
-    assert.ok(createdAt, ".created_at element exists");
-    assert.strictEqual(createdAt.parentNode, stats, ".created_at is a direct child of .stats");
+    // Проверяем порядок следования детей в .stats: created_at -> followers -> average_viewers
+    assert.strictEqual(stats.children[0], createdAt, ".created_at must be the 1st child in .stats");
+    assert.strictEqual(stats.children[1], followers, ".followers must be the 2nd child in .stats");
+    assert.strictEqual(stats.children[2], avgViewers, ".average_viewers must be the 3rd child in .stats");
 
     const lastStream = line.querySelector('.last_stream');
     assert.ok(lastStream, ".last_stream element exists inside .info");
@@ -432,20 +449,19 @@ test("showTwitchUser renders .stats container containing .followers, .average_vi
 });
 
 // ====================================================================
-// Test 2: Форматирование подписчиков (Фоловеров: <span class="count">N</span>)
+// Test 2: Форматирование подписчиков и порог отображения (< 10 не выводится)
 // ====================================================================
-test("applyProfileToVisibleCards formats .followers as 'Фоловеров: <span class=\"count\">${count}</span>'", () => {
+test("applyProfileToVisibleCards formats .followers when >= threshold and hides when < threshold", () => {
     const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
 
     showTwitchUser("JOIN", "streamer_dan", "normal");
 
-    const userData = {
+    // 2.1 Фолловеров >= 10 (12345) -> отображается
+    applyProfileToVisibleCards("streamer_dan", {
         login: "streamer_dan",
         displayName: "StreamerDan",
         followers: 12345
-    };
-
-    applyProfileToVisibleCards("streamer_dan", userData);
+    });
 
     const line = viewersDiv.firstChild;
     const followers = line.querySelector('.followers');
@@ -456,11 +472,41 @@ test("applyProfileToVisibleCards formats .followers as 'Фоловеров: <spa
     assert.strictEqual(countSpan.textContent, "12345", ".count span contains followers count without spaces");
     assert.strictEqual(followers.innerHTML, 'Фоловеров: <span class="count">12345</span>', "followers innerHTML has correct markup format without spaces");
 
-    // Проверка 0 подписчиков
-    applyProfileToVisibleCards("streamer_dan", { ...userData, followers: 0 });
-    const countSpanZero = followers.querySelector('.count');
-    assert.ok(countSpanZero, ".count span exists for 0 followers");
-    assert.strictEqual(countSpanZero.textContent.trim(), "0", ".count span displays 0");
+    // 2.2 Граничное значение 10 -> отображается
+    applyProfileToVisibleCards("streamer_dan", {
+        login: "streamer_dan",
+        displayName: "StreamerDan",
+        followers: 10
+    });
+    assert.strictEqual(followers.innerHTML, 'Фоловеров: <span class="count">10</span>');
+
+    // 2.3 Фолловеров < 10 (9) -> скрывается полностью
+    applyProfileToVisibleCards("streamer_dan", {
+        login: "streamer_dan",
+        displayName: "StreamerDan",
+        followers: 9
+    });
+    assert.strictEqual(followers.innerHTML, "", "followers is empty when < 10");
+
+    // 2.4 Фолловеров 0 -> скрывается полностью
+    applyProfileToVisibleCards("streamer_dan", {
+        login: "streamer_dan",
+        displayName: "StreamerDan",
+        followers: 0
+    });
+    assert.strictEqual(followers.innerHTML, "", "followers is empty when 0");
+
+    // 2.5 Кастомный порог из config (MIN_FOLLOWERS_THRESHOLD = 5)
+    const customEnv = setupTest({ minFollowersThreshold: 5 });
+    customEnv.showTwitchUser("JOIN", "streamer_custom", "normal");
+    const customLine = customEnv.viewersDiv.firstChild;
+    const customFollowers = customLine.querySelector('.followers');
+
+    customEnv.applyProfileToVisibleCards("streamer_custom", { login: "streamer_custom", followers: 5 });
+    assert.strictEqual(customFollowers.innerHTML, 'Фоловеров: <span class="count">5</span>', "shows 5 followers with custom threshold 5");
+
+    customEnv.applyProfileToVisibleCards("streamer_custom", { login: "streamer_custom", followers: 4 });
+    assert.strictEqual(customFollowers.innerHTML, "", "hides 4 followers with custom threshold 5");
 });
 
 // ====================================================================
@@ -647,29 +693,52 @@ test("processVisibleProfiles re-fetches TwitchTracker data when cached profile i
 });
 
 // ====================================================================
-// Test 7: Форматирование даты создания аккаунта (Создан: <span class="count">YYYY.MM.DD</span>)
+// Test 7: Форматирование возраста аккаунта (Возраст: <span class="count normal/danger">X лет/мес/дней</span>)
 // ====================================================================
-test("applyProfileToVisibleCards formats .created_at as 'Создан: <span class=\"count\">YYYY.MM.DD</span>'", () => {
+test("applyProfileToVisibleCards formats .created_at as 'Возраст: <span class=\"count normal\">X года/лет</span>' or 'X мес.' or 'X дней' with .danger", () => {
     const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
 
+    // 7.1 Возраст в годах (2 года) -> .normal
     showTwitchUser("JOIN", "streamer_dan", "normal");
-
-    const userData = {
+    const userDataYears = {
         login: "streamer_dan",
         displayName: "StreamerDan",
-        createdAt: "2025-01-27T00:58:54.950382Z"
+        createdAt: "2021-11-14T00:00:00.000Z" // now = 2023-11-14 (1700000000000) -> 2 года
     };
+    applyProfileToVisibleCards("streamer_dan", userDataYears);
 
-    applyProfileToVisibleCards("streamer_dan", userData);
+    const lineYears = viewersDiv.firstChild;
+    const createdAtYears = lineYears.querySelector('.created_at');
+    assert.ok(createdAtYears, ".created_at element exists");
+    assert.strictEqual(createdAtYears.classList.contains('normal'), true, "has .normal class for years");
+    assert.strictEqual(createdAtYears.classList.contains('danger'), false, "no .danger class for years");
+    assert.strictEqual(createdAtYears.innerHTML, 'Возраст: <span class="count normal">2 года</span>');
 
-    const line = viewersDiv.firstChild;
-    const createdAt = line.querySelector('.created_at');
-    assert.ok(createdAt, ".created_at element exists");
+    // 7.2 Возраст в месяцах (5 мес.) -> .normal
+    showTwitchUser("JOIN", "streamer_months", "normal");
+    const userDataMonths = {
+        login: "streamer_months",
+        displayName: "StreamerMonths",
+        createdAt: "2023-06-14T00:00:00.000Z" // 5 месяцев назад
+    };
+    applyProfileToVisibleCards("streamer_months", userDataMonths);
+    const lineMonths = viewersDiv.firstChild;
+    const createdAtMonths = lineMonths.querySelector('.created_at');
+    assert.strictEqual(createdAtMonths.classList.contains('normal'), true, "has .normal class for months");
+    assert.strictEqual(createdAtMonths.innerHTML, 'Возраст: <span class="count normal">5 мес.</span>');
 
-    const countSpan = createdAt.querySelector('.count');
-    assert.ok(countSpan, ".count span exists inside .created_at");
-    assert.strictEqual(countSpan.textContent, "2025.01.27", ".count span contains formatted date YYYY.MM.DD");
-    assert.strictEqual(createdAt.innerHTML, 'Создан: <span class="count">2025.01.27</span>', "created_at innerHTML has correct markup format");
+    // 7.3 Возраст в днях (10 дней) -> .danger
+    showTwitchUser("JOIN", "streamer_days", "normal");
+    const userDataDays = {
+        login: "streamer_days",
+        displayName: "StreamerDays",
+        createdAt: "2023-11-04T22:13:20.000Z" // 10 дней назад
+    };
+    applyProfileToVisibleCards("streamer_days", userDataDays);
+    const lineDays = viewersDiv.firstChild;
+    const createdAtDays = lineDays.querySelector('.created_at');
+    assert.strictEqual(createdAtDays.classList.contains('danger'), true, "has .danger class for days");
+    assert.strictEqual(createdAtDays.innerHTML, 'Возраст: <span class="count danger">10 дней</span>');
 });
 
 // ====================================================================
@@ -728,6 +797,10 @@ test("applyProfileToVisibleCards formats .last_stream as 'Стрим: <span clas
     const lastStream = line.querySelector('.last_stream');
     assert.ok(lastStream, ".last_stream element exists");
 
+    const labelSpan = lastStream.querySelector('.label');
+    assert.ok(labelSpan, ".label span exists inside .last_stream");
+    assert.strictEqual(labelSpan.textContent, "Стрим:", ".label span contains 'Стрим:'");
+
     const titleSpan = lastStream.querySelector('.title');
     assert.ok(titleSpan, ".title span exists inside .last_stream");
     assert.strictEqual(titleSpan.textContent, streamTitle, ".title span contains broadcast title");
@@ -783,7 +856,7 @@ test("renderTestViewer creates test card with JOIN type, fra3a username, and loa
         login: "fra3a",
         displayName: "FRA3A",
         followers: 2558,
-        createdAt: "2025-01-27T00:58:54.950382Z",
+        createdAt: "2021-01-27T00:58:54.950382Z",
         logo: "https://example.com/fra3a.png",
         bio: "Test bio",
         lastBroadcast: {
@@ -830,11 +903,89 @@ test("renderTestViewer creates test card with JOIN type, fra3a username, and loa
     const avgViewersEl = testCard.querySelector('.average_viewers');
     assert.strictEqual(avgViewersEl.textContent.trim(), "Зрителей: 94");
     const createdAtEl = testCard.querySelector('.created_at');
-    assert.strictEqual(createdAtEl.textContent.trim(), "Создан: 2025.01.27");
+    assert.strictEqual(createdAtEl.textContent.trim(), "Возраст: 2 года");
+    assert.strictEqual(createdAtEl.classList.contains('normal'), true);
     const lastStreamEl = testCard.querySelector('.last_stream');
     assert.strictEqual(lastStreamEl.textContent.trim(), "Стрим: Test stream title");
     const bioEl = testCard.querySelector('.bio');
-    assert.strictEqual(bioEl.textContent.trim(), "Test bio");
+    assert.strictEqual(bioEl.textContent.trim(), "Инфо: Test bio");
+});
+
+// ====================================================================
+// Test 12: Модульное тестирование formatAccountAge (склонение лет, месяцев и дней)
+// ====================================================================
+test("formatAccountAge correctly pluralizes and classifies years, months and days", () => {
+    const { context } = setupTest();
+    const formatAccountAge = (d, n) => JSON.parse(JSON.stringify(context.formatAccountAge(d, n)));
+    const now = new Date("2026-08-22T03:00:00.000Z").getTime();
+
+    // Годы (isDanger: false)
+    assert.deepStrictEqual(formatAccountAge("2025-08-22T03:00:00.000Z", now), { text: "1 год", isDanger: false, type: "years", value: 1 });
+    assert.deepStrictEqual(formatAccountAge("2024-08-22T03:00:00.000Z", now), { text: "2 года", isDanger: false, type: "years", value: 2 });
+    assert.deepStrictEqual(formatAccountAge("2023-08-22T03:00:00.000Z", now), { text: "3 года", isDanger: false, type: "years", value: 3 });
+    assert.deepStrictEqual(formatAccountAge("2022-08-22T03:00:00.000Z", now), { text: "4 года", isDanger: false, type: "years", value: 4 });
+    assert.deepStrictEqual(formatAccountAge("2021-08-22T03:00:00.000Z", now), { text: "5 лет", isDanger: false, type: "years", value: 5 });
+    assert.deepStrictEqual(formatAccountAge("2015-08-22T03:00:00.000Z", now), { text: "11 лет", isDanger: false, type: "years", value: 11 });
+    assert.deepStrictEqual(formatAccountAge("2005-08-22T03:00:00.000Z", now), { text: "21 год", isDanger: false, type: "years", value: 21 });
+    assert.deepStrictEqual(formatAccountAge("2004-08-22T03:00:00.000Z", now), { text: "22 года", isDanger: false, type: "years", value: 22 });
+    assert.deepStrictEqual(formatAccountAge("2001-08-22T03:00:00.000Z", now), { text: "25 лет", isDanger: false, type: "years", value: 25 });
+
+    // Месяцы (isDanger: false)
+    assert.deepStrictEqual(formatAccountAge("2026-07-22T03:00:00.000Z", now), { text: "1 мес.", isDanger: false, type: "months", value: 1 });
+    assert.deepStrictEqual(formatAccountAge("2026-03-22T03:00:00.000Z", now), { text: "5 мес.", isDanger: false, type: "months", value: 5 });
+    assert.deepStrictEqual(formatAccountAge("2025-09-22T03:00:00.000Z", now), { text: "11 мес.", isDanger: false, type: "months", value: 11 });
+
+    // Дни (isDanger: true)
+    assert.deepStrictEqual(formatAccountAge("2026-08-22T03:00:00.000Z", now), { text: "0 дней", isDanger: true, type: "days", value: 0 });
+    assert.deepStrictEqual(formatAccountAge("2026-08-21T03:00:00.000Z", now), { text: "1 день", isDanger: true, type: "days", value: 1 });
+    assert.deepStrictEqual(formatAccountAge("2026-08-20T03:00:00.000Z", now), { text: "2 дня", isDanger: true, type: "days", value: 2 });
+    assert.deepStrictEqual(formatAccountAge("2026-08-18T03:00:00.000Z", now), { text: "4 дня", isDanger: true, type: "days", value: 4 });
+    assert.deepStrictEqual(formatAccountAge("2026-08-17T03:00:00.000Z", now), { text: "5 дней", isDanger: true, type: "days", value: 5 });
+    assert.deepStrictEqual(formatAccountAge("2026-08-11T03:00:00.000Z", now), { text: "11 дней", isDanger: true, type: "days", value: 11 });
+    assert.deepStrictEqual(formatAccountAge("2026-08-01T03:00:00.000Z", now), { text: "21 день", isDanger: true, type: "days", value: 21 });
+    assert.deepStrictEqual(formatAccountAge("2026-07-31T03:00:00.000Z", now), { text: "22 дня", isDanger: true, type: "days", value: 22 });
+    assert.deepStrictEqual(formatAccountAge("2026-07-25T03:00:00.000Z", now), { text: "28 дней", isDanger: true, type: "days", value: 28 });
+
+    // Невалидные / пустые данные
+    assert.strictEqual(context.formatAccountAge(null, now), null);
+    assert.strictEqual(context.formatAccountAge(undefined, now), null);
+    assert.strictEqual(context.formatAccountAge("", now), null);
+    assert.strictEqual(context.formatAccountAge("invalid-date", now), null);
+});
+
+// ====================================================================
+// Test 13: Форматирование .bio (Инфо: <span class="text">...</span>)
+// ====================================================================
+test("applyProfileToVisibleCards formats .bio as 'Инфо: <span class=\"text\">...</span>' when bio is present and leaves empty when omitted", () => {
+    const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
+
+    showTwitchUser("JOIN", "streamer_bio", "normal");
+    const bioText = "Люблю игры и ламповое общение";
+    applyProfileToVisibleCards("streamer_bio", {
+        login: "streamer_bio",
+        bio: bioText
+    });
+
+    const line = viewersDiv.firstChild;
+    const bioEl = line.querySelector('.bio');
+    assert.ok(bioEl, ".bio element exists");
+    const labelSpan = bioEl.querySelector('.label');
+    assert.ok(labelSpan, ".label span exists inside .bio");
+    assert.strictEqual(labelSpan.textContent, "Инфо:", ".label span contains 'Инфо:'");
+    const textSpan = bioEl.querySelector('.text');
+    assert.ok(textSpan, ".text span exists inside .bio");
+    assert.strictEqual(textSpan.textContent, bioText);
+    assert.strictEqual(bioEl.textContent.trim(), `Инфо: ${bioText}`);
+
+    // Пропуск при пустом bio
+    applyProfileToVisibleCards("streamer_bio", { login: "streamer_bio", bio: "" });
+    assert.strictEqual(bioEl.innerHTML.trim(), "");
+
+    applyProfileToVisibleCards("streamer_bio", { login: "streamer_bio", bio: "   " });
+    assert.strictEqual(bioEl.innerHTML.trim(), "");
+
+    applyProfileToVisibleCards("streamer_bio", { login: "streamer_bio", bio: null });
+    assert.strictEqual(bioEl.innerHTML.trim(), "");
 });
 
 async function run() {

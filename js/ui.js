@@ -64,9 +64,9 @@ function showTwitchUser(type, user_name, css_class) {
         <div class="info">
             <a class="nickname" href="https://twitch.tv/${encodeURIComponent(normalizedUsername)}" target="_blank" rel="noopener noreferrer"></a>
             <div class="stats">
+                <div class="created_at"></div>
                 <div class="followers"></div>
                 <div class="average_viewers"></div>
-                <div class="created_at"></div>
             </div>
             <div class="last_stream"></div>
             <div class="bio"></div>
@@ -160,7 +160,8 @@ function applyProfileToVisibleCards(username, userData) {
         }
 
         if (followers) {
-            if (userData.followers !== undefined && userData.followers !== null && Number.isFinite(Number(userData.followers))) {
+            const minFollowers = getMinFollowersThreshold();
+            if (userData.followers !== undefined && userData.followers !== null && Number.isFinite(Number(userData.followers)) && Number(userData.followers) >= minFollowers) {
                 const formattedFollowers = String(userData.followers);
                 followers.innerHTML = `Фоловеров: <span class="count">${formattedFollowers}</span>`;
             } else {
@@ -178,10 +179,14 @@ function applyProfileToVisibleCards(username, userData) {
         }
 
         if (createdAtEl) {
-            const formattedCreatedAt = formatCreatedAt(userData.createdAt);
-            if (formattedCreatedAt) {
-                createdAtEl.innerHTML = `Создан: <span class="count">${formattedCreatedAt}</span>`;
+            const ageInfo = formatAccountAge(userData.createdAt);
+            if (ageInfo && ageInfo.text) {
+                const cssClass = ageInfo.isDanger ? 'danger' : 'normal';
+                createdAtEl.classList.remove('danger', 'normal');
+                createdAtEl.classList.add(cssClass);
+                createdAtEl.innerHTML = `Возраст: <span class="count ${cssClass}">${ageInfo.text}</span>`;
             } else {
+                createdAtEl.classList.remove('danger', 'normal');
                 createdAtEl.innerHTML = '';
             }
         }
@@ -191,7 +196,7 @@ function applyProfileToVisibleCards(username, userData) {
                 ? userData.lastBroadcast.title.trim()
                 : '';
             if (streamTitle) {
-                lastStreamEl.innerHTML = `Стрим: <span class="title"></span>`;
+                lastStreamEl.innerHTML = `<span class="label">Стрим:</span> <span class="title"></span>`;
                 const titleSpan = lastStreamEl.querySelector('.title');
                 if (titleSpan) {
                     titleSpan.textContent = streamTitle;
@@ -201,7 +206,18 @@ function applyProfileToVisibleCards(username, userData) {
             }
         }
 
-        if (bio) bio.textContent = userData.bio || '';
+        if (bio) {
+            const userBio = (typeof userData.bio === 'string') ? userData.bio.trim() : '';
+            if (userBio) {
+                bio.innerHTML = `<span class="label">Инфо:</span> <span class="text"></span>`;
+                const textSpan = bio.querySelector('.text');
+                if (textSpan) {
+                    textSpan.textContent = userBio;
+                }
+            } else {
+                bio.innerHTML = '';
+            }
+        }
 
         if (userData.logo && image) {
             image.hidden = false;
@@ -302,6 +318,7 @@ function initializeViewerSettings() {
     const avatarSizeInput = document.getElementById('avatarSize');
     const onlyNewInput = document.getElementById('onlyNewViewers');
     const raidThresholdInput = document.getElementById('raidThreshold');
+    const coolUsersInput = document.getElementById('coolUsers');
 
     currentTwitchChannel = getTwitchChannel();
     viewerFeedLimit = readNumberSetting(VIEWER_FEED_LIMIT_KEY, (typeof MAX_LOG_LINES !== 'undefined') ? MAX_LOG_LINES : 20, 1, 500);
@@ -314,6 +331,7 @@ function initializeViewerSettings() {
     if (avatarSizeInput) avatarSizeInput.value = avatarSize;
     if (onlyNewInput) onlyNewInput.checked = onlyNewViewers;
     if (raidThresholdInput) raidThresholdInput.value = raidThreshold;
+    if (coolUsersInput) coolUsersInput.value = getCoolUsersRaw();
 
     updateChannelDisplay(currentTwitchChannel);
     applyAvatarSize();
@@ -419,6 +437,16 @@ function initializeViewerSettings() {
         });
     }
 
+    if (coolUsersInput) {
+        coolUsersInput.addEventListener('input', () => {
+            writeStringSetting(COOL_USERS_KEY, coolUsersInput.value.trim());
+        });
+
+        coolUsersInput.addEventListener('change', () => {
+            writeStringSetting(COOL_USERS_KEY, coolUsersInput.value.trim());
+        });
+    }
+
     const saveBtn = document.getElementById('saveSettingsBtn');
     if (saveBtn && !saveBtn._hasSaveListener) {
         saveBtn._hasSaveListener = true;
@@ -441,6 +469,9 @@ function initializeViewerSettings() {
             if (avatarSizeInput) {
                 const size = clampNumber(avatarSizeInput.value, 32, 300, DEFAULT_AVATAR_SIZE);
                 writeNumberSetting(AVATAR_SIZE_KEY, size);
+            }
+            if (coolUsersInput) {
+                writeStringSetting(COOL_USERS_KEY, coolUsersInput.value.trim());
             }
             reloadPage();
         });
