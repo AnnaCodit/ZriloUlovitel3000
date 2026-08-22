@@ -43,6 +43,8 @@ function createSimpleDomNode(tagName = 'div') {
             if (k === 'alt') this.alt = v;
         },
         getAttribute(k) { return this.attributes[k] || null; },
+        get firstElementChild() { return this.children[0] || null; },
+        get lastElementChild() { return this.children[this.children.length - 1] || null; },
         prepend(child) {
             this.children.unshift(child);
             child.parentNode = this;
@@ -920,6 +922,16 @@ test("renderTestViewer creates test card with JOIN type, fra3a username, and loa
     assert.strictEqual(lastStreamEl.textContent.trim(), "Стрим: Test stream title");
     const bioEl = testCard.querySelector('.bio');
     assert.strictEqual(bioEl.textContent.trim(), "Инфо: Test bio");
+
+    // Проверяем блок general-info, добавленный сразу после тестовой карточки
+    const infoCard = viewersDiv.children.find(c => c.classList && c.classList.contains('info'));
+    assert.ok(infoCard, "General info line exists in viewers feed");
+    assert.strictEqual(infoCard.classList.contains('line'), true, "info card has .line class");
+    assert.strictEqual(infoCard.classList.contains('info'), true, "info card has .info class");
+    const generalInfoEl = infoCard.querySelector('.genaral-info');
+    assert.ok(generalInfoEl, "contains .genaral-info block inside");
+    assert.strictEqual(viewersDiv.children[0], infoCard, "info card is prepended above fra3a card");
+    assert.strictEqual(viewersDiv.children[1], testCard, "fra3a card is directly below info card");
 });
 
 // ====================================================================

@@ -15,6 +15,10 @@ body {
     overflow-x: hidden;
 }
 
+p {
+    margin-bottom: 10px;
+}
+
 img,
 picture,
 video,
@@ -198,6 +202,9 @@ svg {
 
 }
 
+.line:hover {
+    background-color: #131313;
+}
 
 .line .avatar {
     width: var(--viewer-avatar-size);
@@ -207,6 +214,7 @@ svg {
     overflow: hidden;
     background: #111;
     float: right;
+    margin: 0 0 10px 10px;
 }
 
 .line .avatar img {
@@ -373,6 +381,20 @@ svg {
 
 .line.system .text {
     color: #00ffff;
+}
+
+.line.info {
+    font-size: 14px;
+    line-height: 1.45;
+    color: #888;
+}
+
+.line.info p {
+    margin-bottom: 8px;
+}
+
+.line.info p:last-child {
+    margin-bottom: 0;
 }
 
 .line .type {

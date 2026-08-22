@@ -43,6 +43,8 @@ function createSimpleDomNode(tagName = 'div') {
             if (k === 'alt') this.alt = v;
         },
         getAttribute(k) { return this.attributes[k] || null; },
+        get firstElementChild() { return this.children[0] || null; },
+        get lastElementChild() { return this.children[this.children.length - 1] || null; },
         prepend(child) {
             this.children.unshift(child);
             child.parentNode = this;
@@ -383,6 +385,28 @@ test("animationend event removes .timer-bar and removes just-added class from .l
     // Проверяем что полоска удалена из DOM
     assert.strictEqual(line.querySelector('.timer-bar'), null, ".timer-bar is removed after animationend");
     assert.strictEqual(line.classList.contains('just-added'), false, "just-added class is removed after animationend");
+});
+
+test('showTwitchUser does not throw when logDiv contains a text node (firstChild without classList)', () => {
+    const { showTwitchUser, viewersDiv } = setupTest();
+    // Имитируем текстовый узел пробела в HTML (<div id="viewers">\n </div>)
+    const textNodeWithoutClassList = { nodeType: 3, nodeValue: '\n        ' };
+    viewersDiv.firstChild = textNodeWithoutClassList;
+
+    // Не должно выбрасывать Uncaught TypeError: Cannot read properties of undefined (reading 'add')
+    assert.doesNotThrow(() => {
+        showTwitchUser("JOIN", "testuser", "normal");
+    });
+
+    const firstCard = viewersDiv.children[0];
+    assert.ok(firstCard, "Card is rendered");
+    assert.strictEqual(firstCard.dataset.username, "testuser");
+
+    // Второй вызов должен добавить separated к первому элементу
+    assert.doesNotThrow(() => {
+        showTwitchUser("ALERT", "seconduser", "special");
+    });
+    assert.strictEqual(firstCard.classList.contains('separated'), true, "first card got 'separated' class");
 });
 
 async function run() {

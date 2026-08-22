@@ -30,7 +30,13 @@ function trimViewerFeed() {
     const logDiv = document.getElementById('viewers');
     if (!logDiv) return;
     while (logDiv.children.length > viewerFeedLimit) {
-        logDiv.removeChild(logDiv.lastChild);
+        if (logDiv.lastElementChild) {
+            logDiv.removeChild(logDiv.lastElementChild);
+        } else if (logDiv.lastChild) {
+            logDiv.removeChild(logDiv.lastChild);
+        } else {
+            break;
+        }
     }
 }
 
@@ -54,8 +60,10 @@ function showTwitchUser(type, user_name, css_class) {
     line.dataset.username = normalizedUsername;
     const time = new Date().toLocaleTimeString('ru-RU');
 
-    let last_element = logDiv.firstChild;
-    if (last_element) last_element.classList.add('separated');
+    let last_element = logDiv.firstElementChild || (logDiv.children && logDiv.children[0]) || null;
+    if (last_element && last_element.classList && typeof last_element.classList.add === 'function') {
+        last_element.classList.add('separated');
+    }
 
     line.innerHTML = `
         <div class="avatar">
@@ -107,8 +115,10 @@ function showRaidAlert(count) {
     line.classList.add('line', 'raid', 'special', 'just-added');
     const time = new Date().toLocaleTimeString('ru-RU');
 
-    let last_element = logDiv.firstChild;
-    if (last_element) last_element.classList.add('separated');
+    let last_element = logDiv.firstElementChild || (logDiv.children && logDiv.children[0]) || null;
+    if (last_element && last_element.classList && typeof last_element.classList.add === 'function') {
+        last_element.classList.add('separated');
+    }
 
     line.innerHTML = `
         <div class="avatar raid-avatar">
@@ -229,10 +239,36 @@ function applyProfileToVisibleCards(username, userData) {
     });
 }
 
+function renderGeneralInfo() {
+    const logDiv = document.getElementById('viewers');
+    if (!logDiv) return;
+
+    const line = document.createElement('div');
+    line.classList.add('line', 'info');
+
+    let last_element = logDiv.firstElementChild || (logDiv.children && logDiv.children[0]) || null;
+    if (last_element && last_element.classList && typeof last_element.classList.add === 'function') {
+        last_element.classList.add('separated');
+    }
+
+    line.innerHTML = `
+        <div class="genaral-info">
+            <p>Карточка стримерши FRA3A ниже - это пример того, как будет выглядеть описание каждого пришедшего зрителя.
+                При условии, что у них есть соответствующие данные.</p>
+            <p>Если в вашем чате много оффлайн-чаттерсов, то первый раз они могут быть показаны как рейд (подгружаются
+                твичов сразу все).</p>
+        </div>
+    `;
+
+    logDiv.prepend(line);
+    trimViewerFeed();
+}
+
 function renderTestViewer(username = 'fra3a') {
     const testUsername = (typeof username === 'string' && username.trim()) ? username.trim() : 'fra3a';
     const userClass = isCoolUser(testUsername) ? 'special' : 'normal';
     showTwitchUser("JOIN", testUsername, userClass);
+    renderGeneralInfo();
 }
 
 function scheduleVisibleProfilesLoad() {
