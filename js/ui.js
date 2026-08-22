@@ -163,7 +163,7 @@ function applyProfileToVisibleCards(username, userData) {
             const minFollowers = getMinFollowersThreshold();
             if (userData.followers !== undefined && userData.followers !== null && Number.isFinite(Number(userData.followers)) && Number(userData.followers) >= minFollowers) {
                 const formattedFollowers = String(userData.followers);
-                followers.innerHTML = `Фоловеров: <span class="count">${formattedFollowers}</span>`;
+                followers.innerHTML = `<span class="label">Фоловеров:</span> <span class="count">${formattedFollowers}</span>`;
             } else {
                 followers.innerHTML = '';
             }
@@ -172,7 +172,7 @@ function applyProfileToVisibleCards(username, userData) {
         if (avgViewersEl) {
             if (userData.avgViewers !== undefined && userData.avgViewers !== null && Number.isFinite(Number(userData.avgViewers)) && Number(userData.avgViewers) > 0) {
                 const formattedAvg = String(userData.avgViewers);
-                avgViewersEl.innerHTML = `Зрителей: <span class="count">${formattedAvg}</span>`;
+                avgViewersEl.innerHTML = `<span class="label">Зрителей:</span> <span class="count">${formattedAvg}</span>`;
             } else {
                 avgViewersEl.innerHTML = '';
             }
@@ -184,7 +184,7 @@ function applyProfileToVisibleCards(username, userData) {
                 const cssClass = ageInfo.isDanger ? 'danger' : 'normal';
                 createdAtEl.classList.remove('danger', 'normal');
                 createdAtEl.classList.add(cssClass);
-                createdAtEl.innerHTML = `Возраст: <span class="count ${cssClass}">${ageInfo.text}</span>`;
+                createdAtEl.innerHTML = `<span class="label">Возраст:</span> <span class="count ${cssClass}">${ageInfo.text}</span>`;
             } else {
                 createdAtEl.classList.remove('danger', 'normal');
                 createdAtEl.innerHTML = '';

@@ -467,10 +467,14 @@ test("applyProfileToVisibleCards formats .followers when >= threshold and hides 
     const followers = line.querySelector('.followers');
     assert.ok(followers, ".followers element exists");
 
+    const labelSpan = followers.querySelector('.label');
+    assert.ok(labelSpan, ".label span exists inside .followers");
+    assert.strictEqual(labelSpan.textContent, "Фоловеров:", ".label span contains 'Фоловеров:'");
+
     const countSpan = followers.querySelector('.count');
     assert.ok(countSpan, ".count span exists inside .followers");
     assert.strictEqual(countSpan.textContent, "12345", ".count span contains followers count without spaces");
-    assert.strictEqual(followers.innerHTML, 'Фоловеров: <span class="count">12345</span>', "followers innerHTML has correct markup format without spaces");
+    assert.strictEqual(followers.innerHTML, '<span class="label">Фоловеров:</span> <span class="count">12345</span>', "followers innerHTML has correct markup format with .label span");
 
     // 2.2 Граничное значение 10 -> отображается
     applyProfileToVisibleCards("streamer_dan", {
@@ -478,7 +482,7 @@ test("applyProfileToVisibleCards formats .followers when >= threshold and hides 
         displayName: "StreamerDan",
         followers: 10
     });
-    assert.strictEqual(followers.innerHTML, 'Фоловеров: <span class="count">10</span>');
+    assert.strictEqual(followers.innerHTML, '<span class="label">Фоловеров:</span> <span class="count">10</span>');
 
     // 2.3 Фолловеров < 10 (9) -> скрывается полностью
     applyProfileToVisibleCards("streamer_dan", {
@@ -503,7 +507,7 @@ test("applyProfileToVisibleCards formats .followers when >= threshold and hides 
     const customFollowers = customLine.querySelector('.followers');
 
     customEnv.applyProfileToVisibleCards("streamer_custom", { login: "streamer_custom", followers: 5 });
-    assert.strictEqual(customFollowers.innerHTML, 'Фоловеров: <span class="count">5</span>', "shows 5 followers with custom threshold 5");
+    assert.strictEqual(customFollowers.innerHTML, '<span class="label">Фоловеров:</span> <span class="count">5</span>', "shows 5 followers with custom threshold 5");
 
     customEnv.applyProfileToVisibleCards("streamer_custom", { login: "streamer_custom", followers: 4 });
     assert.strictEqual(customFollowers.innerHTML, "", "hides 4 followers with custom threshold 5");
@@ -512,7 +516,7 @@ test("applyProfileToVisibleCards formats .followers when >= threshold and hides 
 // ====================================================================
 // Test 3: Форматирование среднего онлайна (Зрителей: <span class="count">N</span>) при avgViewers > 0
 // ====================================================================
-test("applyProfileToVisibleCards formats .average_viewers as 'Зрителей: <span class=\"count\">${count}</span>' when avgViewers is positive", () => {
+test("applyProfileToVisibleCards formats .average_viewers as '<span class=\"label\">Зрителей:</span> <span class=\"count\">${count}</span>' when avgViewers is positive", () => {
     const { showTwitchUser, applyProfileToVisibleCards, viewersDiv } = setupTest();
 
     showTwitchUser("JOIN", "bigstreamer", "normal");
@@ -530,10 +534,14 @@ test("applyProfileToVisibleCards formats .average_viewers as 'Зрителей: 
     const avgViewers = line.querySelector('.average_viewers');
     assert.ok(avgViewers, ".average_viewers element exists");
 
+    const labelSpan = avgViewers.querySelector('.label');
+    assert.ok(labelSpan, ".label span exists inside .average_viewers");
+    assert.strictEqual(labelSpan.textContent, "Зрителей:", ".label span contains 'Зрителей:'");
+
     const countSpan = avgViewers.querySelector('.count');
     assert.ok(countSpan, ".count span exists inside .average_viewers");
     assert.strictEqual(countSpan.textContent.replace(/\s+/g, ''), "150", ".count span contains avgViewers count");
-    assert.match(avgViewers.innerHTML, /^Зрителей:\s*<span class="count">150<\/span>/, "average_viewers innerHTML has correct markup format");
+    assert.match(avgViewers.innerHTML, /^<span class="label">Зрителей:<\/span>\s*<span class="count">150<\/span>/, "average_viewers innerHTML has correct markup format");
 });
 
 // ====================================================================
@@ -689,7 +697,7 @@ test("processVisibleProfiles re-fetches TwitchTracker data when cached profile i
     const line = viewersDiv.firstChild;
     const avgViewersEl = line.querySelector('.average_viewers');
     assert.ok(avgViewersEl, ".average_viewers element exists");
-    assert.match(avgViewersEl.innerHTML, /Зрителей:\s*<span class="count">94<\/span>/, "average_viewers is populated with 94");
+    assert.match(avgViewersEl.innerHTML, /<span class="label">Зрителей:<\/span>\s*<span class="count">94<\/span>/, "average_viewers is populated with 94");
 });
 
 // ====================================================================
@@ -712,7 +720,10 @@ test("applyProfileToVisibleCards formats .created_at as 'Возраст: <span c
     assert.ok(createdAtYears, ".created_at element exists");
     assert.strictEqual(createdAtYears.classList.contains('normal'), true, "has .normal class for years");
     assert.strictEqual(createdAtYears.classList.contains('danger'), false, "no .danger class for years");
-    assert.strictEqual(createdAtYears.innerHTML, 'Возраст: <span class="count normal">2 года</span>');
+    const labelYears = createdAtYears.querySelector('.label');
+    assert.ok(labelYears, ".label exists inside .created_at");
+    assert.strictEqual(labelYears.textContent, "Возраст:", ".label contains 'Возраст:'");
+    assert.strictEqual(createdAtYears.innerHTML, '<span class="label">Возраст:</span> <span class="count normal">2 года</span>');
 
     // 7.2 Возраст в месяцах (5 мес.) -> .normal
     showTwitchUser("JOIN", "streamer_months", "normal");
@@ -725,7 +736,7 @@ test("applyProfileToVisibleCards formats .created_at as 'Возраст: <span c
     const lineMonths = viewersDiv.firstChild;
     const createdAtMonths = lineMonths.querySelector('.created_at');
     assert.strictEqual(createdAtMonths.classList.contains('normal'), true, "has .normal class for months");
-    assert.strictEqual(createdAtMonths.innerHTML, 'Возраст: <span class="count normal">5 мес.</span>');
+    assert.strictEqual(createdAtMonths.innerHTML, '<span class="label">Возраст:</span> <span class="count normal">5 мес.</span>');
 
     // 7.3 Возраст в днях (10 дней) -> .danger
     showTwitchUser("JOIN", "streamer_days", "normal");
@@ -738,7 +749,7 @@ test("applyProfileToVisibleCards formats .created_at as 'Возраст: <span c
     const lineDays = viewersDiv.firstChild;
     const createdAtDays = lineDays.querySelector('.created_at');
     assert.strictEqual(createdAtDays.classList.contains('danger'), true, "has .danger class for days");
-    assert.strictEqual(createdAtDays.innerHTML, 'Возраст: <span class="count danger">10 дней</span>');
+    assert.strictEqual(createdAtDays.innerHTML, '<span class="label">Возраст:</span> <span class="count danger">10 дней</span>');
 });
 
 // ====================================================================
